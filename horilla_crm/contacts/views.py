@@ -3,10 +3,12 @@ Views for managing contacts and related accounts in the CRM system.
 Includes create, update, list, and relationship views with permission checks.
 """
 
+# Standard library imports
 import logging
 from functools import cached_property
 from urllib.parse import urlencode
 
+# Third-party imports (Django)
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse
@@ -17,6 +19,7 @@ from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import FormView, View
 
+# First-party / Horilla imports
 from horilla_activity.views import HorillaActivitySectionView
 from horilla_core.decorators import (
     htmx_required,
@@ -27,7 +30,6 @@ from horilla_core.utils import is_owner
 from horilla_crm.contacts.filters import ContactFilter
 from horilla_crm.contacts.models import Contact, ContactAccountRelationship
 from horilla_crm.contacts.signals import set_contact_account_id
-from horilla_crm.opportunities.models import Opportunity, OpportunityContactRole
 from horilla_generics.mixins import RecentlyViewedMixin
 from horilla_generics.views import (
     HorillaDetailSectionView,
@@ -46,6 +48,7 @@ from horilla_generics.views import (
 )
 from horilla_utils.middlewares import _thread_local
 
+# Local application imports
 from .forms import ChildContactForm, ContactFormClass, ContactSingleForm
 
 logger = logging.getLogger(__name__)
@@ -371,7 +374,7 @@ class RelatedContactFormView(LoginRequiredMixin, HorillaMultiStepFormView):
                 set_contact_account_id(
                     account_id=account_id, company=self.request.active_company
                 )
-            response = super().form_valid(form)
+            super().form_valid(form)
             return HttpResponse(
                 "<script>htmx.trigger('#tab-contact_relationships-btn','click');closeModal();</script>"
             )
@@ -801,20 +804,18 @@ class ContactRelatedListsTab(LoginRequiredMixin, HorillaRelatedListSectionView):
                             ),
                         ],
                         "col_attrs": [
-                            (
-                                {
-                                    "name": {
-                                        "hx-get": f"{{get_detail_url}}?referrer_app={self.model._meta.app_label}&referrer_model={self.model._meta.model_name}&referrer_id={pk}&referrer_url={referrer_url}&{query_string}",
-                                        "hx-target": "#mainContent",
-                                        "hx-swap": "outerHTML",
-                                        "hx-push-url": "true",
-                                        "hx-select": "#mainContent",
-                                        "permission": "opportunities.view_opportunity",
-                                        "own_permission": "opportunities.view_own_opportunity",
-                                        "owner_field": "owner",
-                                    }
+                            {
+                                "name": {
+                                    "hx-get": f"{{get_detail_url}}?referrer_app={self.model._meta.app_label}&referrer_model={self.model._meta.model_name}&referrer_id={pk}&referrer_url={referrer_url}&{query_string}",
+                                    "hx-target": "#mainContent",
+                                    "hx-swap": "outerHTML",
+                                    "hx-push-url": "true",
+                                    "hx-select": "#mainContent",
+                                    "permission": "opportunities.view_opportunity",
+                                    "own_permission": "opportunities.view_own_opportunity",
+                                    "owner_field": "owner",
                                 }
-                            )
+                            }
                         ],
                     },
                 },
@@ -903,20 +904,18 @@ class ContactRelatedListsTab(LoginRequiredMixin, HorillaRelatedListSectionView):
                             ),
                         ],
                         "col_attrs": [
-                            (
-                                {
-                                    "name": {
-                                        "hx-get": f"{{get_detail_url}}?referrer_app={self.model._meta.app_label}&referrer_model={self.model._meta.model_name}&referrer_id={pk}&referrer_url={referrer_url}&{query_string}",
-                                        "hx-target": "#mainContent",
-                                        "hx-swap": "outerHTML",
-                                        "hx-push-url": "true",
-                                        "hx-select": "#mainContent",
-                                        "permission": "accounts.view_account",
-                                        "own_permission": "accounts.view_own_account",
-                                        "owner_field": "account_owner",
-                                    }
+                            {
+                                "name": {
+                                    "hx-get": f"{{get_detail_url}}?referrer_app={self.model._meta.app_label}&referrer_model={self.model._meta.model_name}&referrer_id={pk}&referrer_url={referrer_url}&{query_string}",
+                                    "hx-target": "#mainContent",
+                                    "hx-swap": "outerHTML",
+                                    "hx-push-url": "true",
+                                    "hx-select": "#mainContent",
+                                    "permission": "accounts.view_account",
+                                    "own_permission": "accounts.view_own_account",
+                                    "owner_field": "account_owner",
                                 }
-                            )
+                            }
                         ],
                     },
                 },
@@ -955,20 +954,18 @@ class ContactRelatedListsTab(LoginRequiredMixin, HorillaRelatedListSectionView):
                     ),
                 ],
                 "col_attrs": [
-                    (
-                        {
-                            "title": {
-                                "hx-get": f"{{get_detail_url}}?referrer_app={self.model._meta.app_label}&referrer_model={self.model._meta.model_name}&referrer_id={pk}&referrer_url={referrer_url}&{query_string}",
-                                "hx-target": "#mainContent",
-                                "hx-swap": "outerHTML",
-                                "hx-push-url": "true",
-                                "hx-select": "#mainContent",
-                                "permission": "contacts.view_contact",
-                                "own_permission": "contacts.view_own_contact",
-                                "owner_field": "contact_owner",
-                            }
+                    {
+                        "title": {
+                            "hx-get": f"{{get_detail_url}}?referrer_app={self.model._meta.app_label}&referrer_model={self.model._meta.model_name}&referrer_id={pk}&referrer_url={referrer_url}&{query_string}",
+                            "hx-target": "#mainContent",
+                            "hx-swap": "outerHTML",
+                            "hx-push-url": "true",
+                            "hx-select": "#mainContent",
+                            "permission": "contacts.view_contact",
+                            "own_permission": "contacts.view_own_contact",
+                            "owner_field": "contact_owner",
                         }
-                    )
+                    }
                 ],
             },
         }
@@ -1144,7 +1141,7 @@ class AddChildContactFormView(LoginRequiredMixin, FormView):
             form.add_error(None, _("Invalid parent contact ID format."))
             result = self.form_invalid(form)
 
-        except Exception as e:
+        except Exception:
             form.add_error(
                 None,
                 _("An unexpected error occurred while assigning the child contact."),
@@ -1215,7 +1212,7 @@ class ChildContactDeleteView(LoginRequiredMixin, View):
                 "<script>htmx.trigger('#tab-child_contacts-btn', 'click');</script>"
             )
 
-        except Exception as e:
+        except Exception:
             messages.error(
                 request, _("An error occurred while removing the child contact.")
             )

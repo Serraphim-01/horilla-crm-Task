@@ -1,10 +1,13 @@
 """Signals to keep forecasts in sync with Opportunity changes."""
 
+# Standard library imports
 import logging
 
+# Third-party imports (Django)
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
+# First-party / Horilla imports
 from horilla.auth.models import User
 from horilla_core.models import Period
 from horilla_core.signals import company_currency_changed
@@ -305,6 +308,7 @@ def update_forecast_on_opportunity_delete(sender, instance, **kwargs):
 
 @receiver(post_save, sender=User)
 def create_forecast_shortcuts(sender, instance, created, **kwargs):
+    """Create default keyboard shortcuts for forecast when a user is created."""
     predefined = [
         {"page": "/forecast/forecast-view/", "key": "F", "command": "alt"},
     ]

@@ -5,17 +5,17 @@ This module provides list, detail, form, and delete views for opportunity teams
 and their members, including HTMX-based navigation, filtering, and CRUD handling.
 """
 
+# Standard library imports
 import logging
 from functools import cached_property
 from urllib.parse import urlencode
 
+# Third-party imports (Django)
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import redirect_to_login
-from django.db import models, transaction
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
-from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -23,6 +23,7 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView, TemplateView, View
 
+# First-party / Horilla imports
 from horilla.auth.models import User
 from horilla.exceptions import HorillaHttp404
 from horilla_core.decorators import htmx_required
@@ -296,7 +297,7 @@ class OpportunityTeamDetailView(LoginRequiredMixin, DetailView):
             if request.headers.get("HX-Request") == "true":
                 messages.error(self.request, e)
                 return HttpResponse(headers={"HX-Refresh": "true"})
-            raise HorillaHttp404(e)
+            raise HorillaHttp404(e) from e
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -477,7 +478,7 @@ class OpportunityTeamMemberCreateView(LoginRequiredMixin, HorillaSingleFormView)
             try:
                 user = User.objects.get(pk=user_id)
                 name = f"{user.first_name} {user.last_name}".strip() or user.username
-            except:
+            except Exception:
                 name = f"User ID {user_id}"
             return f"{name} is already a member of this team."
 
@@ -496,7 +497,7 @@ class OpportunityTeamMemberCreateView(LoginRequiredMixin, HorillaSingleFormView)
                 user = User.objects.get(pk=user_id)
                 name = f"{user.first_name} {user.last_name}".strip() or user.username
                 return f"{name} is already a member of this team."
-            except:
+            except Exception:
                 pass
         return error_msg
 
@@ -611,7 +612,7 @@ class OpportunityMembersDeleteView(LoginRequiredMixin, HorillaSingleDeleteView):
             return super().delete(request, *args, **kwargs)
 
         except Exception as e:
-            logger.error(f"Error in OpportunityMembersDeleteView.delete: {str(e)}")
+            logger.error("Error in OpportunityMembersDeleteView.delete: %s", e)
             messages.error(
                 request, _("An error occurred while deleting the team member.")
             )
@@ -787,7 +788,7 @@ class AddOpportunityMemberView(LoginRequiredMixin, HorillaSingleFormView):
                     or user_obj.username
                 )
                 return f"{user_name} is already a member of this opportunity"
-            except:
+            except Exception:
                 return f"User ID {user_id} is already a member of this opportunity"
 
         unique_cache.add(cache_key)
@@ -821,6 +822,7 @@ class ToggleTeamSellingView(LoginRequiredMixin, View):
     """
 
     def post(self, request, *args, **kwargs):
+        """Handle POST request to toggle team selling feature."""
         company = self.request.active_company
         settings = OpportunitySettings.get_settings(company)
         action = request.POST.get("action")

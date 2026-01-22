@@ -2,6 +2,7 @@
 Opportunities module models.
 """
 
+# Third-party imports (Django)
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator, MaxValueValidator, MinValueValidator
 from django.db import models, transaction
@@ -11,14 +12,10 @@ from django.urls import reverse_lazy
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 
+# First-party / Horilla imports
 from horilla import settings
 from horilla.registry.permission_registry import permission_exempt_model
-from horilla_core.models import (
-    Company,
-    CustomerRole,
-    HorillaCoreModel,
-    MultipleCurrency,
-)
+from horilla_core.models import Company, CustomerRole, HorillaCoreModel
 from horilla_crm.accounts.models import Account
 from horilla_crm.campaigns.models import Campaign
 from horilla_crm.contacts.models import Contact
@@ -144,7 +141,7 @@ class OpportunityStage(HorillaCoreModel):
             non_final_statuses = [s for s in non_final_statuses if s != self]
             non_final_statuses.sort(key=lambda x: x.order)
 
-            max_order = max([s.order for s in non_final_statuses], default=0)
+            max_order = max((s.order for s in non_final_statuses), default=0)
 
             if desired_order > max_order:
                 non_final_statuses.append(self)
@@ -751,6 +748,8 @@ class OpportunitySettings(HorillaCoreModel):
     )
 
     class Meta:
+        """Meta options for OpportunitySettings."""
+
         verbose_name = _("Opportunity Setting")
         verbose_name_plural = _("Opportunity Settings")
         unique_together = ("company",)
@@ -761,7 +760,7 @@ class OpportunitySettings(HorillaCoreModel):
     @classmethod
     def get_settings(cls, company):
         """Get or create settings for the given company"""
-        settings, created = cls.objects.get_or_create(
+        settings, _created = cls.objects.get_or_create(
             company=company, defaults={"team_selling_enabled": False}
         )
         return settings
@@ -877,6 +876,8 @@ class OpportunitySplitType(HorillaCoreModel):
     )
 
     class Meta:
+        """Meta options for OpportunitySplitType."""
+
         verbose_name = _("Opportunity Split Type")
         verbose_name_plural = _("Opportunity Split Types")
         unique_together = ("company", "split_field", "totals_100_percent")
@@ -885,7 +886,7 @@ class OpportunitySplitType(HorillaCoreModel):
         return str(self.split_label)
 
     def is_active_col(self):
-
+        """Return HTML for active status column."""
         html = render_template(
             path="opportunity_split/is_active_col.html", context={"instance": self}
         )
@@ -949,6 +950,8 @@ class OpportunitySplit(HorillaCoreModel):
     )
 
     class Meta:
+        """Meta options for OpportunitySplit."""
+
         verbose_name = _("Opportunity Split")
         verbose_name_plural = _("Opportunity Splits")
 

@@ -1,4 +1,6 @@
-from django.db.models.signals import post_save, pre_save
+"""Signal handlers for accounts module."""
+
+from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from horilla.auth.models import User
@@ -11,6 +13,7 @@ from horilla_keys.models import ShortcutKey
 
 @receiver(post_save, sender=User)
 def create_account_shortcuts(sender, instance, created, **kwargs):
+    """Create default keyboard shortcuts for accounts when a user is created."""
     predefined = [
         {"page": "/accounts/accounts-view/", "key": "A", "command": "alt"},
     ]

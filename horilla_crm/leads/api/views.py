@@ -5,15 +5,17 @@ This module mirrors horilla_core API patterns including search, filtering,
 bulk update, bulk delete, permissions, and documentation.
 """
 
+# Third-party imports
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from horilla_core.api.docs import BULK_DELETE_DOCS, BULK_UPDATE_DOCS, SEARCH_FILTER_DOCS
+# First-party / Horilla imports
+from horilla_core.api.docs import BULK_DELETE_DOCS, BULK_UPDATE_DOCS
 from horilla_core.api.mixins import BulkOperationsMixin, SearchFilterMixin
-from horilla_core.api.permissions import IsCompanyMember, IsOwnerOrAdmin
+from horilla_core.api.permissions import IsCompanyMember
 from horilla_crm.leads.api.docs import (
     LEAD_BY_OWNER_DOCS,
     LEAD_BY_SOURCE_DOCS,

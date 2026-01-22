@@ -3,9 +3,10 @@ Views for managing Forecast Targets, including creation, update, deletion,
 and dynamic UI handling for role-based and condition-based forecasting.
 """
 
+# Standard library imports
 from functools import cached_property
 
-from django.contrib import messages
+# Third party imports (Django)
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse
 from django.shortcuts import render
@@ -16,6 +17,7 @@ from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 
+# First-party / Horilla imports
 from horilla.auth.models import User
 from horilla_core.decorators import (
     htmx_required,
@@ -33,7 +35,6 @@ from horilla_generics.views import (
     HorillaSingleFormView,
     HorillaView,
 )
-from horilla_utils.middlewares import _thread_local
 
 
 class ForecastTargetView(LoginRequiredMixin, HorillaView):
@@ -448,7 +449,7 @@ class ForecastTargetFormView(LoginRequiredMixin, HorillaSingleFormView):
             try:
                 user = User.objects.get(id=assigned_to_id)
                 return f"Duplicate entry found for user '{user}'."
-            except:
+            except Exception:
                 return "Duplicate entry found."
 
         if ForecastTarget.objects.filter(
@@ -459,7 +460,7 @@ class ForecastTargetFormView(LoginRequiredMixin, HorillaSingleFormView):
             try:
                 user = User.objects.get(id=assigned_to_id)
                 return f"Forecast target already exists for user '{user}'."
-            except:
+            except Exception:
                 return "Forecast target already exists."
 
         unique_cache.add(combination)

@@ -1,13 +1,16 @@
 """Forms for Lead model and Lead conversion process."""
 
+# Standard library imports
 import logging
 
+# Third-party imports
 import pycountry
+
+# Third-party imports (Django)
 from django import forms
-from django.apps import apps
-from django.db import models
 from django.urls import reverse, reverse_lazy
 
+# First-party / Horilla imports
 from horilla.auth.models import User
 from horilla_core.mixins import OwnerQuerysetMixin
 from horilla_crm.accounts.models import Account
@@ -16,6 +19,7 @@ from horilla_crm.opportunities.models import Opportunity
 from horilla_generics.forms import HorillaModelForm, HorillaMultiStepForm
 from horilla_mail.models import HorillaMailConfiguration
 
+# Local application imports
 from .models import (
     EmailToLeadConfig,
     Lead,
@@ -84,12 +88,13 @@ class LeadFormClass(OwnerQuerysetMixin, HorillaMultiStepForm):
             )
 
     def get_subdivision_choices(self, country_code):
+        """Get subdivision choices for a given country code."""
         try:
             subdivisions = list(
                 pycountry.subdivisions.get(country_code=country_code.upper())
             )
             return [(sub.code, sub.name) for sub in subdivisions]
-        except:
+        except Exception:
             return []
 
 
@@ -151,12 +156,13 @@ class LeadSingleForm(OwnerQuerysetMixin, HorillaModelForm):
             )
 
     def get_subdivision_choices(self, country_code):
+        """Get subdivision choices for a given country code."""
         try:
             subdivisions = list(
                 pycountry.subdivisions.get(country_code=country_code.upper())
             )
             return [(sub.code, sub.name) for sub in subdivisions]
-        except:
+        except Exception:
             return []
 
 
@@ -394,7 +400,10 @@ class EmailToLeadForm(HorillaModelForm):
 
 
 class ScoringCriterionForm(HorillaModelForm):
+    """Form for creating and editing scoring criteria."""
+
     def __init__(self, *args, **kwargs):
+        """Initialize scoring criterion form with condition model."""
         kwargs["condition_model"] = ScoringCondition
         super().__init__(*args, **kwargs)
 
@@ -412,6 +421,8 @@ class ScoringCriterionForm(HorillaModelForm):
         return cleaned_data
 
     class Meta:
+        """Meta options for ScoringCriterionForm."""
+
         model = ScoringCriterion
         fields = ["rule", "points", "operation_type"]
         widgets = {

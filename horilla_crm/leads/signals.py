@@ -3,8 +3,10 @@ Signal handlers for leads in Horilla CRM.
 Handles automatic updates when company-related events occur, e.g., currency change.
 """
 
+# Standard library imports
 import logging
 
+# Third-party imports (Django)
 from django.apps import apps
 from django.core.exceptions import FieldDoesNotExist
 from django.db import transaction
@@ -14,6 +16,7 @@ from django.dispatch import Signal, receiver
 from django.http import HttpResponse
 from django.urls import reverse_lazy
 
+# First-party / Horilla imports
 from horilla.auth.models import User
 from horilla_core.signals import company_created, company_currency_changed
 from horilla_crm.leads.models import (
@@ -34,24 +37,22 @@ lead_stage_created = Signal()
 def handle_company_created(sender, instance, request, view, is_new, **kwargs):
     """Inject lead stages loading after company creation"""
     if is_new:  # Only for new companies
+        url = reverse_lazy("leads:load_lead_stages", kwargs={"company_id": instance.id})
         return HttpResponse(
-            """
+            f"""
             <script>
                 closeModal();
                 $('#reloadButton').click();
                 openContentModal();
                 var div = document.createElement('div');
-                div.setAttribute('hx-get', '%s');
+                div.setAttribute('hx-get', '{url}');
                 div.setAttribute('hx-target', '#contentModalBox');
                 div.setAttribute('hx-trigger', 'load');
                 div.setAttribute('hx-swap', 'innerHTML');
                 document.body.appendChild(div);
                 htmx.process(div);
             </script>
-            """
-            % reverse_lazy(
-                "leads:load_lead_stages", kwargs={"company_id": instance.id}
-            ),
+            """,
             headers={"X-Debug": "Modal transition in progress"},
         )
     return None
@@ -83,6 +84,7 @@ def update_crm_on_currency_change(sender, **kwargs):
 
 @receiver(post_save, sender=User)
 def create_leads_shortcuts(sender, instance, created, **kwargs):
+    """Create default keyboard shortcuts for leads when a user is created."""
     predefined = [
         {"page": "/leads/leads-view/", "key": "E", "command": "alt"},
     ]
@@ -99,6 +101,7 @@ def create_leads_shortcuts(sender, instance, created, **kwargs):
 
 
 def get_score_field(model):
+    """Get the score field name for a given model."""
     score_fields = {
         "lead": "lead_score",
         "opportunity": "opportunity_score",
@@ -186,14 +189,15 @@ def build_query_from_conditions(criterion, Model):
             elif operator == "is_not_empty":
                 condition_query = ~Q(**{field: None}) & ~Q(**{f"{field}__exact": ""})
             else:
-                logger.warning(f"Unsupported operator {operator} for field {field}")
                 condition_query = Q(pk__in=[])
             if logical_operator == "and":
                 query &= condition_query
             else:
                 query |= condition_query
         except FieldDoesNotExist:
-            logger.warning(f"Field {field} does not exist on {Model._meta.model_name}")
+            logger.warning(
+                "Field %s does not exist on %s", field, Model._meta.model_name
+            )
             query &= Q(pk__in=[])
 
     return query
@@ -217,11 +221,16 @@ def update_all_scores_for_module(module):
             try:
                 Model.objects.update(**{score_field: 0})
                 logger.info(
-                    f"Reset {score_field} to 0 for all {Model._meta.model_name} instances"
+                    "Reset %s to 0 for all %s instances",
+                    score_field,
+                    Model._meta.model_name,
                 )
             except Exception as e:
                 logger.error(
-                    f"Error resetting {score_field} for {Model._meta.model_name}: {e}"
+                    "Error resetting %s for %s: %s",
+                    score_field,
+                    Model._meta.model_name,
+                    e,
                 )
                 raise
 
@@ -250,11 +259,18 @@ def update_all_scores_for_module(module):
                             }
                         )
                         logger.info(
-                            f"Updated {score_field} for {Model._meta.model_name} instances matching criterion {criterion.id}"
+                            "Updated %s for %s instances matching criterion %s",
+                            score_field,
+                            Model._meta.model_name,
+                            criterion.id,
                         )
                     except Exception as e:
                         logger.error(
-                            f"Error updating {score_field} for {Model._meta.model_name} with criterion {criterion.id}: {e}"
+                            "Error updating %s for %s with criterion %s: %s",
+                            score_field,
+                            Model._meta.model_name,
+                            criterion.id,
+                            e,
                         )
                         raise
 

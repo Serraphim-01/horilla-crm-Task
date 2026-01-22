@@ -1,10 +1,15 @@
+"""Signal handlers for campaigns module."""
+
+# Standard library imports
 import logging
 
+# Third-party imports (Django)
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import Sum
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
+# First-party / Horilla imports
 from horilla.auth.models import User
 from horilla_core.signals import company_currency_changed
 from horilla_crm.campaigns.models import Campaign, CampaignMember
@@ -18,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender=User)
 def create_campaign_shortcuts(sender, instance, created, **kwargs):
+    """Create default keyboard shortcuts for campaigns when a user is created."""
     predefined = [
         {"page": "/campaigns/campaign-view/", "key": "C", "command": "alt"},
     ]
@@ -128,7 +134,7 @@ def update_campaign_metrics(campaign):
                 ]
             )
     except Exception as e:
-        logger.error(f"Error updating campaign metrics for {campaign}: {e}")
+        logger.error("Error updating campaign metrics for %s: %s", campaign, e)
 
 
 @receiver([post_save, post_delete], sender=CampaignMember)
@@ -160,7 +166,7 @@ def update_campaign_on_opportunity_change(sender, instance, **kwargs):
                 )
                 previous_amount = previous.amount
             except Opportunity.DoesNotExist:
-                logger.warning(f"Previous Opportunity {instance.pk} not found")
+                logger.warning("Previous Opportunity %s not found", instance.pk)
 
         if instance.primary_campaign_source:
             update_campaign_metrics(instance.primary_campaign_source)
@@ -175,14 +181,19 @@ def update_campaign_on_opportunity_change(sender, instance, **kwargs):
         ):
             if instance.primary_campaign_source:
                 logger.debug(
-                    f"Stage or amount changed for Opportunity {instance.pk}: "
-                    f"stage_type={current_stage_type}, amount={instance.amount}"
+                    "Stage or amount changed for Opportunity %s: "
+                    "stage_type=%s, amount=%s",
+                    instance.pk,
+                    current_stage_type,
+                    instance.amount,
                 )
                 update_campaign_metrics(instance.primary_campaign_source)
 
     except Exception as e:
         logger.error(
-            f"Error in update_campaign_on_opportunity_change for Opportunity {instance.pk}: {e}"
+            "Error in update_campaign_on_opportunity_change for Opportunity %s: %s",
+            instance.pk,
+            e,
         )
 
 
@@ -197,6 +208,7 @@ def update_campaign_on_opportunity_delete(sender, instance, **kwargs):
 
 @receiver(post_save, sender=Lead)
 def update_campaign_on_lead_conversion(sender, instance, **kwargs):
+    """Update campaign metrics when a lead is converted."""
     if instance.is_convert and kwargs.get("created"):
         campaign_members = CampaignMember.objects.filter(lead=instance)
         for member in campaign_members:

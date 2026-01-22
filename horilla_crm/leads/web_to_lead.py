@@ -1,9 +1,13 @@
+"""Web-to-lead form builder and public form views."""
+
+# Standard library imports
 import json
 from urllib.parse import urlparse
 
+# Third-party imports (Django)
 from django import forms
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import Http404, HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
 from django.template.loader import render_to_string
 from django.urls import reverse, reverse_lazy
@@ -14,10 +18,12 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import CreateView, FormView, TemplateView
 
+# First-party / Horilla imports
 from horilla.auth.models import User
 from horilla.exceptions import HorillaHttp404
 from horilla_core.decorators import htmx_required, permission_required_or_denied
 
+# Local application imports
 from .models import Lead, LeadCaptureForm, LeadStatus
 
 
@@ -81,6 +87,7 @@ class UpdateFormHeadingView(LoginRequiredMixin, TemplateView):
     template_name = "web_to_lead/form_heading.html"
 
     def post(self, request, *args, **kwargs):
+        """Handle POST request to update form heading."""
         form_name = request.POST.get("form_name", "").strip()
         color = request.POST.get("color", "#ffffff")
 
@@ -105,6 +112,7 @@ class UpdateFormPreviewView(LoginRequiredMixin, TemplateView):
     template_name = "web_to_lead/form_preview.html"
 
     def post(self, request, *args, **kwargs):
+        """Handle POST request to update form preview."""
 
         selected_fields = request.POST.getlist("selected_fields[]")
         form_name = request.POST.get("form_name", "").strip()
@@ -136,7 +144,7 @@ class UpdateFormPreviewView(LoginRequiredMixin, TemplateView):
                         ),
                     }
                 )
-            except:
+            except Exception:
                 pass
 
         context = {
@@ -171,11 +179,15 @@ class SaveLeadFormView(LoginRequiredMixin, FormView):
     template_name = "web_to_lead/lead_form_builder.html"
 
     def get_form_class(self):
-        """Dynamically create the form class"""
+        """Dynamically create the form class."""
         from django.forms import ModelForm
 
         class LeadCaptureFormForm(ModelForm):
+            """Form for lead capture form configuration."""
+
             class Meta:
+                """Meta options for LeadCaptureFormForm."""
+
                 model = LeadCaptureForm
                 fields = self.fields
 
@@ -215,7 +227,7 @@ class SaveLeadFormView(LoginRequiredMixin, FormView):
                 return self.form_invalid(form)
 
         # Get or create the LeadCaptureForm instance
-        obj, created = LeadCaptureForm.objects.get_or_create(
+        obj, _created = LeadCaptureForm.objects.get_or_create(
             company=self.request.active_company,
             defaults={
                 "created_by": self.request.user,
@@ -265,7 +277,7 @@ class SaveLeadFormView(LoginRequiredMixin, FormView):
                     "choices": getattr(field, "choices", None),
                 }
                 parsed_fields.append(field_info)
-            except:
+            except Exception:
                 pass
 
         # Generate HTML code
@@ -374,6 +386,7 @@ class AddFieldView(LoginRequiredMixin, TemplateView):
     template_name = "web_to_lead/selected_field.html"
 
     def post(self, request, *args, **kwargs):
+        """Handle POST request to add a field to selected list."""
         field_name = request.POST.get("field_name")
         field_verbose = request.POST.get("field_verbose")
         form_name = request.POST.get("form_name")
@@ -396,8 +409,10 @@ class AddFieldView(LoginRequiredMixin, TemplateView):
     permission_required_or_denied("leads.add_leadcaptureform"), name="dispatch"
 )
 class RemoveFieldView(LoginRequiredMixin, View):
+    """HTMX view to remove a field from selected list."""
 
     def post(self, request, *args, **kwargs):
+        """Handle POST request to remove a field from selected list."""
         field_name = request.POST.get("field_name")
         js = f"""
         <script>
@@ -420,6 +435,7 @@ class PublicLeadFormView(CreateView):
     template_name = "web_to_lead/public_lead_form.html"
 
     def get_form_class(self):
+        """Get form class for public lead form based on form configuration."""
         form_id = self.kwargs.get("form_id")
         try:
             form_config = LeadCaptureForm.objects.get(id=form_id, is_active=True)
@@ -430,13 +446,19 @@ class PublicLeadFormView(CreateView):
             selected_fields = json.loads(form_config.selected_fields)
 
             class DynamicLeadForm(forms.ModelForm):
+                """Dynamically generated form based on selected fields."""
+
                 class Meta:
+                    """Meta options for DynamicLeadForm."""
+
                     model = Lead
                     fields = selected_fields
 
             return DynamicLeadForm
         except LeadCaptureForm.DoesNotExist as e:
-            raise HorillaHttp404(str(e), template="web_to_lead/web_to_lead_404.html")
+            raise HorillaHttp404(
+                str(e), template="web_to_lead/web_to_lead_404.html"
+            ) from e
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -466,13 +488,15 @@ class PublicLeadFormView(CreateView):
                         "choices": getattr(field, "choices", None),
                     }
                     parsed_fields.append(field_info)
-                except:
+                except Exception:
                     pass
 
             context["selected_fields_parsed"] = parsed_fields
 
         except LeadCaptureForm.DoesNotExist as e:
-            raise HorillaHttp404(str(e), template="web_to_lead/web_to_lead_404.html")
+            raise HorillaHttp404(
+                str(e), template="web_to_lead/web_to_lead_404.html"
+            ) from e
 
         return context
 
@@ -484,7 +508,7 @@ class PublicLeadFormView(CreateView):
         form.instance.lead_source = "website"
         try:
             form.instance.lead_status = LeadStatus.objects.first()
-        except:
+        except Exception:
             pass
 
         self.object = form.save()
@@ -505,8 +529,7 @@ class PublicLeadFormView(CreateView):
                         response = HttpResponse()
                         response["HX-Redirect"] = return_url
                         return response
-                    else:
-                        return_url = "https://" + return_url
+                    return_url = "https://" + return_url
 
                 # External redirect via HTMX
                 response = HttpResponse()
@@ -541,6 +564,7 @@ class PublicLeadFormView(CreateView):
         return ""
 
     def form_invalid(self, form):
+        """Handle invalid form submission for HTMX and non-HTMX requests."""
         # For HTMX requests, return the form with errors
         if self.request.headers.get("HX-Request"):
             return self.render_to_response(self.get_context_data(form=form))
@@ -556,6 +580,7 @@ class ToggleReturnUrlView(LoginRequiredMixin, View):
     """Toggle between return URL and success message fields"""
 
     def post(self, request, *args, **kwargs):
+        """Handle POST request to toggle return URL fields."""
         return_url_enabled = request.POST.get("return_url_enable") == "on"
 
         context = {"return_url_enabled": return_url_enabled}

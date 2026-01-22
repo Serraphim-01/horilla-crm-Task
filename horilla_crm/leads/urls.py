@@ -1,7 +1,6 @@
 """URL configurations for the leads app."""
 
 from django.urls import path
-from django.views.generic import TemplateView
 
 from horilla_crm.leads import mail_to_lead, scoring_rule, web_to_lead
 

@@ -6,9 +6,13 @@ These models represent the structure of lead-related data and include any
 relationships, constraints, and behaviors.
 """
 
+# Standard library imports
 import logging
 
+# Third-party imports
 from colorfield.fields import ColorField
+
+# Third-party imports (Django)
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
@@ -22,6 +26,8 @@ from django.utils.translation import gettext_lazy as _
 from django_countries.fields import CountryField
 
 from horilla.registry.permission_registry import permission_exempt_model
+
+# First-party / Horilla imports
 from horilla.utils.choices import OPERATOR_CHOICES
 from horilla_core.models import Company, HorillaCoreModel
 from horilla_mail.models import HorillaMailConfiguration
@@ -129,7 +135,7 @@ class LeadStatus(HorillaCoreModel):
             non_final_statuses = [s for s in non_final_statuses if s != self]
             non_final_statuses.sort(key=lambda x: x.order)
 
-            max_order = max([s.order for s in non_final_statuses], default=0)
+            max_order = max((s.order for s in non_final_statuses), default=0)
 
             if desired_order > max_order:
                 non_final_statuses.append(self)
@@ -355,6 +361,7 @@ def update_lead_score(sender, instance, **kwargs):
 
 
 class EmailToLeadConfig(HorillaCoreModel):
+    """Configuration for converting emails to leads."""
 
     mail = models.ForeignKey(
         HorillaMailConfiguration,
@@ -394,10 +401,13 @@ class EmailToLeadConfig(HorillaCoreModel):
     )
 
     class Meta:
+        """Meta options for EmailToLeadConfig."""
+
         verbose_name = _("Mail to Lead Config")
         verbose_name_plural = _("Mail to Lead Config")
 
     def update_last_fetched(self):
+        """Update the last fetched timestamp."""
         self.last_fetched = timezone.now()
         self.save(update_fields=["last_fetched"])
 
@@ -495,15 +505,19 @@ class LeadCaptureForm(HorillaCoreModel):
     )
 
     class Meta:
+        """Meta options for LeadCaptureForm."""
+
         verbose_name = _("Lead Capture Form")
         verbose_name_plural = _("Lead Capture Forms")
         ordering = ["-created_at"]
 
     def __str__(self):
-        return self.form_name
+        return str(self.form_name)
 
 
 class ScoringRule(HorillaCoreModel):
+    """Scoring rule for calculating lead/opportunity scores."""
+
     name = models.CharField(max_length=100, verbose_name=_("Rule Name"))
     module = models.CharField(
         max_length=50,
@@ -518,10 +532,10 @@ class ScoringRule(HorillaCoreModel):
     description = models.TextField(blank=True, null=True, verbose_name=_("Description"))
 
     def __str__(self):
-        return self.name
+        return str(self.name)
 
     def is_active_col(self):
-
+        """Return HTML for active status column."""
         html = render_template(
             path="scoring_rule/is_active_col.html", context={"instance": self}
         )
@@ -603,6 +617,8 @@ class ScoringCriterion(HorillaCoreModel):
         return result
 
     class Meta:
+        """Meta options for ScoringCriterion."""
+
         verbose_name = _("Scoring Criterion")
         verbose_name_plural = _("Scoring Criteria")
         ordering = ["order", "id"]
@@ -653,48 +669,50 @@ class ScoringCondition(HorillaCoreModel):
             # Perform comparison based on operator
             if self.operator == "equals":
                 return field_value == self.value
-            elif self.operator == "not_equals":
+            if self.operator == "not_equals":
                 return field_value != self.value
-            elif self.operator == "contains":
+            if self.operator == "contains":
                 return self.value.lower() in field_value.lower()
-            elif self.operator == "not_contains":
+            if self.operator == "not_contains":
                 return self.value.lower() not in field_value.lower()
-            elif self.operator == "starts_with":
+            if self.operator == "starts_with":
                 return field_value.lower().startswith(self.value.lower())
-            elif self.operator == "ends_with":
+            if self.operator == "ends_with":
                 return field_value.lower().endswith(self.value.lower())
-            elif self.operator == "greater_than":
+            if self.operator == "greater_than":
                 try:
                     return float(field_value) > float(self.value)
                 except (ValueError, TypeError):
                     return False
-            elif self.operator == "greater_than_equal":
+            if self.operator == "greater_than_equal":
                 try:
                     return float(field_value) >= float(self.value)
                 except (ValueError, TypeError):
                     return False
-            elif self.operator == "less_than":
+            if self.operator == "less_than":
                 try:
                     return float(field_value) < float(self.value)
                 except (ValueError, TypeError):
                     return False
-            elif self.operator == "less_than_equal":
+            if self.operator == "less_than_equal":
                 try:
                     return float(field_value) <= float(self.value)
                 except (ValueError, TypeError):
                     return False
-            elif self.operator == "is_empty":
+            if self.operator == "is_empty":
                 return not field_value or field_value.strip() == ""
-            elif self.operator == "is_not_empty":
+            if self.operator == "is_not_empty":
                 return bool(field_value and field_value.strip())
 
             return False
 
         except Exception as e:
-            logger.error(f"Error evaluating condition {self}: {str(e)}")
+            logger.error("Error evaluating condition %s: %s", self, e)
             return False
 
     class Meta:
+        """Meta options for ScoringCondition."""
+
         verbose_name = _("Scoring Condition")
         verbose_name_plural = _("Scoring Conditions")
         ordering = ["order", "id"]
@@ -702,6 +720,8 @@ class ScoringCondition(HorillaCoreModel):
 
 @permission_exempt_model
 class EmailActivityScoring(HorillaCoreModel):
+    """Email activity scoring configuration."""
+
     rule = models.ForeignKey(
         ScoringRule, on_delete=models.CASCADE, related_name="email_activities"
     )
