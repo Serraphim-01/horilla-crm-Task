@@ -30,7 +30,11 @@ class LeadStatusFilter(HorillaFilterSet):
 
 
 class ScoringRuleFilter(HorillaFilterSet):
+    """Filter set for scoring rules."""
+
     class Meta:
+        """Meta options for ScoringRuleFilter."""
+
         model = ScoringRule
         fields = "__all__"
         exclude = ["additional_info"]

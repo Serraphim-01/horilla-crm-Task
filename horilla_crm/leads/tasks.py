@@ -1,14 +1,20 @@
+"""Celery tasks for email-to-lead functionality."""
+
+# Standard library imports
 import email
 import email.utils
 import imaplib
 import logging
 from datetime import datetime
 
+# Third-party imports
 import requests
 from celery import shared_task
 
+# First-party / Horilla imports
 from horilla_mail.horilla_outlook import refresh_outlook_token
 
+# Local application imports
 from .models import EmailToLeadConfig, Lead, LeadStatus
 
 logger = logging.getLogger(__name__)
@@ -53,7 +59,7 @@ def fetch_emails_to_leads():
             )
 
         except Exception as e:
-            logger.error(f"Error fetching emails for {config.mail.username}: {str(e)}")
+            logger.error("Error fetching emails for %s: %s", config.mail.username, e)
             results.append({"email": config.mail.username, "error": str(e)})
 
     return {
@@ -90,7 +96,7 @@ def fetch_from_imap(config):
     filtered_count = 0
 
     for e_id in email_ids:
-        res, msg_data = mail.fetch(e_id, "(RFC822)")
+        _res, msg_data = mail.fetch(e_id, "(RFC822)")
         msg = email.message_from_bytes(msg_data[0][1])
 
         result = process_email_message(msg, config, allowed_senders)
@@ -131,7 +137,7 @@ def fetch_from_outlook(config):
         "$select": "id,subject,from,body,bodyPreview,internetMessageId,internetMessageHeaders",
         "$top": 100,
     }
-    response = requests.get(url, headers=headers, params=params)
+    response = requests.get(url, headers=headers, params=params, timeout=30)
 
     # Auto-refresh token if expired
     if response.status_code == 401:
@@ -139,7 +145,7 @@ def fetch_from_outlook(config):
 
         # Retry with new token
         headers["Authorization"] = f'Bearer {config.mail.token["access_token"]}'
-        response = requests.get(url, headers=headers, params=params)
+        response = requests.get(url, headers=headers, params=params, timeout=30)
 
     response.raise_for_status()
     messages = response.json().get("value", [])
@@ -194,7 +200,9 @@ def process_email_message(msg, config, allowed_senders):
 
     # Check keyword filters
     if not config.matches_keywords(subject, body):
-        logger.info(f"Email from {sender} filtered out by keywords. Subject: {subject}")
+        logger.info(
+            "Email from %s filtered out by keywords. Subject: %s", sender, subject
+        )
         return "filtered"
 
     Lead.objects.create(

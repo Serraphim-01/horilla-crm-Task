@@ -1,3 +1,5 @@
+"""Internationalization strings for CRM leads module."""
+
 from django.utils.translation import gettext_lazy as _
 
 _("CRM")

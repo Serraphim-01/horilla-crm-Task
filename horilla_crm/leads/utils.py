@@ -1,3 +1,5 @@
+"""Utility functions for leads module."""
+
 from horilla_crm.leads.models import ScoringRule
 
 
