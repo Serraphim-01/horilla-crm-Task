@@ -1,15 +1,18 @@
 """Forms for dashboards app."""
 
+# Standard library imports
 import json
 import logging
 
+# Third-party imports (Django)
 from django import forms
 from django.apps import apps
-from django.db import models
 from django.urls import reverse_lazy
 
 from horilla.registry.feature import FEATURE_REGISTRY
-from horilla_core.models import HorillaContentType
+
+# First-party / Horilla imports
+from horilla.utils.choices import DISPLAYABLE_FIELD_TYPES
 from horilla_generics.forms import HorillaModelForm
 
 from .models import ComponentCriteria, DashboardComponent
@@ -172,16 +175,7 @@ class DashboardCreateForm(HorillaModelForm):
                                     field_label = field.verbose_name or field.name
                                     if hasattr(field, "get_internal_type"):
                                         field_type = field.get_internal_type()
-                                        if field_type in [
-                                            "CharField",
-                                            "TextField",
-                                            "BooleanField",
-                                            "DateField",
-                                            "DateTimeField",
-                                            "TimeField",
-                                            "EmailField",
-                                            "URLField",
-                                        ]:
+                                        if field_type in DISPLAYABLE_FIELD_TYPES:
                                             column_choices.append(
                                                 (field_name, field_label)
                                             )
@@ -286,16 +280,7 @@ class DashboardCreateForm(HorillaModelForm):
 
                         if hasattr(field, "get_internal_type"):
                             field_type = field.get_internal_type()
-                            if field_type in [
-                                "CharField",
-                                "TextField",
-                                "BooleanField",
-                                "DateField",
-                                "DateTimeField",
-                                "TimeField",
-                                "EmailField",
-                                "URLField",
-                            ]:
+                            if field_type in DISPLAYABLE_FIELD_TYPES:
                                 grouping_fields.append((field_name, field_label))
                             elif hasattr(field, "choices") and field.choices:
                                 grouping_fields.append((field_name, f"{field_label}"))
@@ -332,16 +317,7 @@ class DashboardCreateForm(HorillaModelForm):
                         field_label = field.verbose_name or field.name
                         if hasattr(field, "get_internal_type"):
                             field_type = field.get_internal_type()
-                            if field_type in [
-                                "CharField",
-                                "TextField",
-                                "BooleanField",
-                                "DateField",
-                                "DateTimeField",
-                                "TimeField",
-                                "EmailField",
-                                "URLField",
-                            ]:
+                            if field_type in DISPLAYABLE_FIELD_TYPES:
                                 secondary_grouping_fields.append(
                                     (field_name, field_label)
                                 )

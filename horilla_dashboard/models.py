@@ -446,7 +446,13 @@ class DashboardComponent(HorillaCoreModel):
                             and field.many_to_one,
                         }
                     )
-                except:
+                except Exception as e:
+                    logger.warning(
+                        "Could not get field '%s' for model '%s': %s",
+                        column,
+                        model.__name__,
+                        e,
+                    )
                     columns_with_headers.append(
                         {
                             "field": column,

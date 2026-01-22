@@ -1,9 +1,11 @@
 """Views for managing horilla_dashboard and their components."""
 
+# Standard library imports
 import json
 import logging
 from urllib.parse import urlencode, urlparse
 
+# Third-party imports (Django)
 from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -11,18 +13,17 @@ from django.contrib.auth.views import redirect_to_login
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, ForeignKey, Q
-from django.db.models.fields.related import ForeignKey
 from django.http import HttpResponse, JsonResponse, QueryDict
-from django.shortcuts import get_object_or_404, render  # type: ignore
-from django.template.loader import render_to_string
+from django.shortcuts import get_object_or_404, render
 from django.urls import reverse_lazy
-from django.utils import timezone
 from django.utils.decorators import method_decorator
-from django.utils.functional import cached_property  # type: ignore
+from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView, View
 
+# First-party / Horilla imports
 from horilla.exceptions import HorillaHttp404
+from horilla.utils.choices import DISPLAYABLE_FIELD_TYPES
 from horilla_core.decorators import (
     htmx_required,
     permission_required,
@@ -48,6 +49,7 @@ from horilla_reports.models import Report
 from horilla_utils.methods import get_section_info_for_model
 from horilla_utils.middlewares import _thread_local
 
+# Local imports
 from .utils import DefaultDashboardGenerator
 
 logger = logging.getLogger(__name__)
@@ -199,6 +201,7 @@ class DashboardNavbar(LoginRequiredMixin, HorillaNavView):
                 "url": f"""{ reverse_lazy('horilla_dashboard:dashboard_create')}""",
                 "attrs": {"id": "dashboard-create"},
             }
+        return None
 
     @cached_property
     def second_button(self):
@@ -211,6 +214,7 @@ class DashboardNavbar(LoginRequiredMixin, HorillaNavView):
                 "url": f"{reverse_lazy('horilla_dashboard:dashboard_folder_create')}?pk={self.request.GET.get('pk', '')}",
                 "attrs": {"id": "dashboard-folder-create"},
             }
+        return None
 
 
 @method_decorator(
@@ -307,6 +311,7 @@ class DashboardDefaultToggleView(LoginRequiredMixin, View):
                     messages.success(request, f"{dashboard.name} removed from default.")
                 dashboard.save()
                 return HttpResponse("<script>$('#reloadButton').click();</script>")
+            return None
 
         except Dashboard.DoesNotExist:
             return HttpResponse(
@@ -450,7 +455,7 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
                 "section": section_info["section"],
                 "label": f"{metric_label} of {module_name.title()}",
             }
-        except:
+        except Exception:
             return None
 
     def get_report_chart_data(self, component, request):
@@ -488,7 +493,7 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
             try:
                 field_obj = model._meta.get_field(group_by_field)
                 is_fk = field_obj.is_relation
-            except:
+            except Exception:
                 is_fk = False
 
             # Include both the field and its ID for foreign keys
@@ -536,7 +541,7 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
                             label_value = str(related_obj)
                         except related_model.DoesNotExist:
                             pass
-                except:
+                except Exception:
                     pass
 
                 labels.append(
@@ -550,7 +555,7 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
                     field = model._meta.get_field(group_by_field)
                     if field.is_relation:
                         filter_value = item.get(f"{group_by_field}_id", filter_value)
-                except:
+                except Exception:
                     pass
 
                 query = urlencode(
@@ -625,7 +630,7 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
             try:
                 field_obj = model._meta.get_field(group_by_field)
                 is_fk = field_obj.is_relation
-            except:
+            except Exception:
                 is_fk = False
 
             # Include both the field and its ID for foreign keys
@@ -663,7 +668,7 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
                             if choice_value == label_value:
                                 label_value = choice_label
                                 break
-                except:
+                except Exception:
                     pass
 
                 labels.append(
@@ -676,7 +681,7 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
                     field = model._meta.get_field(group_by_field)
                     if field.is_relation:
                         filter_value = item.get(f"{group_by_field}_id", filter_value)
-                except:
+                except Exception:
                     pass
 
                 # Generate filter URL
@@ -863,7 +868,7 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
             prefix = "-" if sort_direction == "desc" else ""
             try:
                 queryset = queryset.order_by(f"{prefix}{sort_field}")
-            except:
+            except Exception:
                 queryset = queryset.order_by("id")
         else:
             queryset = queryset.order_by("id")
@@ -888,7 +893,7 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
                         ]
                 else:
                     selected_columns = component.columns
-            except:
+            except Exception:
                 selected_columns = []
         else:
             selected_columns = []
@@ -904,7 +909,7 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
                     columns.append((verbose_name, f"get_{column}_display"))
                 else:
                     columns.append((verbose_name, column))
-            except:
+            except Exception:
                 continue
 
         if not columns:
@@ -1176,7 +1181,7 @@ class DashboardComponentTableDataView(LoginRequiredMixin, View):
             prefix = "-" if sort_direction == "desc" else ""
             try:
                 queryset = queryset.order_by(f"{prefix}{sort_field}")
-            except:
+            except Exception:
                 queryset = queryset.order_by("id")
         else:
             queryset = queryset.order_by("id")
@@ -1194,7 +1199,7 @@ class DashboardComponentTableDataView(LoginRequiredMixin, View):
 
         try:
             page_obj = paginator.get_page(page)
-        except:
+        except Exception:
             if request.headers.get("HX-Request"):
                 return HttpResponse("")
             return HttpResponse("Invalid page")
@@ -1217,7 +1222,7 @@ class DashboardComponentTableDataView(LoginRequiredMixin, View):
                         ]
                 else:
                     selected_columns = component.columns
-            except:
+            except Exception:
                 selected_columns = []
         else:
             selected_columns = []
@@ -1233,7 +1238,7 @@ class DashboardComponentTableDataView(LoginRequiredMixin, View):
                     columns.append((verbose_name, f"get_{column}_display"))
                 else:
                     columns.append((verbose_name, column))
-            except:
+            except Exception:
                 continue
 
         if not columns:
@@ -1400,8 +1405,6 @@ class DashboardComponentFormView(LoginRequiredMixin, HorillaSingleFormView):
         # If module is a HorillaContentType ID, convert it to model_name
         if model_name and model_name.isdigit():
             try:
-                from horilla_core.models import HorillaContentType
-
                 content_type = HorillaContentType.objects.get(pk=model_name)
                 model_name = content_type.model
             except Exception:
@@ -1597,16 +1600,7 @@ class ColumnFieldChoicesView(View):
 
                 if hasattr(field, "get_internal_type"):
                     field_type = field.get_internal_type()
-                    if field_type in [
-                        "CharField",
-                        "TextField",
-                        "BooleanField",
-                        "DateField",
-                        "DateTimeField",
-                        "TimeField",
-                        "EmailField",
-                        "URLField",
-                    ]:
+                    if field_type in DISPLAYABLE_FIELD_TYPES:
                         column_fields.append((field_name, field_label))
                     elif hasattr(field, "choices") and field.choices:
                         column_fields.append((field_name, f"{field_label}"))
@@ -1684,16 +1678,7 @@ class GroupingFieldChoicesView(View):
 
                 if hasattr(field, "get_internal_type"):
                     field_type = field.get_internal_type()
-                    if field_type in [
-                        "CharField",
-                        "TextField",
-                        "BooleanField",
-                        "DateField",
-                        "DateTimeField",
-                        "TimeField",
-                        "EmailField",
-                        "URLField",
-                    ]:
+                    if field_type in DISPLAYABLE_FIELD_TYPES:
                         grouping_fields.append((field_name, field_label))
                     elif hasattr(field, "choices") and field.choices:
                         grouping_fields.append((field_name, f"{field_label}"))
@@ -1771,16 +1756,7 @@ class SecondaryGroupingFieldChoicesView(View):
 
                 if hasattr(field, "get_internal_type"):
                     field_type = field.get_internal_type()
-                    if field_type in [
-                        "CharField",
-                        "TextField",
-                        "BooleanField",
-                        "DateField",
-                        "DateTimeField",
-                        "TimeField",
-                        "EmailField",
-                        "URLField",
-                    ]:
+                    if field_type in DISPLAYABLE_FIELD_TYPES:
                         grouping_fields.append((field_name, field_label))
                     elif hasattr(field, "choices") and field.choices:
                         grouping_fields.append((field_name, f"{field_label}"))
@@ -2131,7 +2107,7 @@ class DashboardComponentChartView(View):
                 "section": section_info["section"],
                 "label": f"{metric_label} of {module_name.title()}",
             }
-        except:
+        except Exception:
             return None
 
     def get_chart_data(self, component):
@@ -2224,9 +2200,9 @@ class DashboardComponentChartView(View):
                                         pk=label
                                     )
                                     label = str(related_obj)
-                                except:
+                                except Exception:
                                     pass
-                    except:
+                    except Exception:
                         pass
 
                     if isinstance(label, (list, dict)):
@@ -2265,7 +2241,7 @@ class DashboardComponentChartView(View):
                 }
 
             return None
-        except:
+        except Exception:
             return None
 
     def get_stacked_chart_data(
@@ -2310,7 +2286,7 @@ class DashboardComponentChartView(View):
                         for cat in categories
                         if cat is not None
                     ]
-            except:
+            except Exception:
                 categories = [
                     str(cat) if cat is not None else "None"
                     for cat in categories
@@ -2549,7 +2525,7 @@ class DashboardComponentChartView(View):
                             if choice_value == label:
                                 label = choice_label
                                 break
-                except:
+                except Exception:
                     pass
 
                 if isinstance(label, (list, dict)):
@@ -2692,6 +2668,7 @@ class DashboardComponentChartView(View):
                 </script>
                 """
                 return HttpResponse(html)
+            return None
 
         except DashboardComponent.DoesNotExist:
             return HttpResponse(
@@ -2772,6 +2749,7 @@ class AddToDashboardForm(LoginRequiredMixin, HorillaSingleFormView):
                 "horilla_dashboard:move_to_another_dashboard",
                 kwargs={"component_id": pk},
             )
+        return None
 
     def get(self, request, *args, **kwargs):
         component_id = self.kwargs.get("component_id")
@@ -3235,6 +3213,7 @@ class MoveDashboardView(LoginRequiredMixin, HorillaSingleFormView):
             return reverse_lazy(
                 "horilla_dashboard:move_dashboard_to_folder", kwargs={"pk": pk}
             )
+        return None
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -3288,6 +3267,7 @@ class MoveFolderView(LoginRequiredMixin, HorillaSingleFormView):
             return reverse_lazy(
                 "horilla_dashboard:move_folder_to_folder", kwargs={"pk": pk}
             )
+        return None
 
     def get(self, request, *args, **kwargs):
         folder_id = self.kwargs.get("pk")
