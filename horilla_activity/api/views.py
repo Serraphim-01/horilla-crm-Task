@@ -29,7 +29,7 @@ from horilla_activity.api.docs import (
 )
 from horilla_activity.api.serializers import ActivitySerializer
 from horilla_activity.models import Activity
-from horilla_core.api.docs import BULK_DELETE_DOCS, BULK_UPDATE_DOCS, SEARCH_FILTER_DOCS
+from horilla_core.api.docs import BULK_DELETE_DOCS, BULK_UPDATE_DOCS
 from horilla_core.api.mixins import BulkOperationsMixin, SearchFilterMixin
 from horilla_core.api.permissions import IsCompanyMember
 
