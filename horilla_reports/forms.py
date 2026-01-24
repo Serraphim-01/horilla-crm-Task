@@ -21,12 +21,12 @@ class ReportForm(HorillaModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.request.user.is_superuser:
-            self.fields["folder"].queryset = ReportFolder.objects.all()
-        else:
-            self.fields["folder"].queryset = ReportFolder.objects.filter(
-                report_folder_owner=self.request.user
-            )
+        self.fields["folder"].queryset = (
+            ReportFolder.objects.all()
+            if self.request.user.is_superuser
+            else ReportFolder.objects.filter(report_folder_owner=self.request.user)
+        )
+
         self.fields["module"].widget.attrs.update(
             {
                 "hx-get": reverse_lazy("horilla_reports:get_module_columns_htmx"),

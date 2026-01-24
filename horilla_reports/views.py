@@ -87,10 +87,7 @@ class ReportNavbar(LoginRequiredMixin, HorillaNavView):
         super().__init__(**kwargs)
         request = getattr(_thread_local, "request", None)
         title = request.GET.get("title")
-        if title == "Reports":
-            self.all_view_types = True
-        else:
-            self.all_view_types = False
+        self.all_view_types = True if title == "Reports" else False
 
     def get_context_data(self, **kwargs):
         """Add navigation title from query params into the context."""
@@ -1530,27 +1527,27 @@ class ReportDetailView(RecentlyViewedMixin, LoginRequiredMixin, DetailView):
                             "id": related_obj.pk,
                             "composite_key": f"{str(related_obj)}||{related_obj.pk}",
                         }
-                    else:
-                        return {
-                            "display": f"Unknown ({value})",
-                            "id": value,
-                            "composite_key": f"Unknown ({value})",
-                        }
-                else:
-                    # Fallback: single query (slower but works if cache not provided)
-                    try:
-                        related_obj = field.related_model.objects.get(pk=value)
-                        return {
-                            "display": str(related_obj),
-                            "id": related_obj.pk,
-                            "composite_key": f"{str(related_obj)}||{related_obj.pk}",
-                        }
-                    except field.related_model.DoesNotExist:
-                        return {
-                            "display": f"Unknown ({value})",
-                            "id": value,
-                            "composite_key": f"Unknown ({value})",
-                        }
+                    # else:
+                    return {
+                        "display": f"Unknown ({value})",
+                        "id": value,
+                        "composite_key": f"Unknown ({value})",
+                    }
+                # else:
+                # Fallback: single query (slower but works if cache not provided)
+                try:
+                    related_obj = field.related_model.objects.get(pk=value)
+                    return {
+                        "display": str(related_obj),
+                        "id": related_obj.pk,
+                        "composite_key": f"{str(related_obj)}||{related_obj.pk}",
+                    }
+                except field.related_model.DoesNotExist:
+                    return {
+                        "display": f"Unknown ({value})",
+                        "id": value,
+                        "composite_key": f"Unknown ({value})",
+                    }
             if hasattr(field, "choices") and field.choices:
                 choice_dict = dict(field.choices)
                 display = choice_dict.get(value, value)
@@ -1781,7 +1778,7 @@ class ReportDetailView(RecentlyViewedMixin, LoginRequiredMixin, DetailView):
                     aggfunc="size",
                     fill_value=0,
                 )
-            except Exception as pivot_error:
+            except Exception:
                 return self._fallback_chart_data(df, report, model_class, fk_cache)
 
             if pivot_table.empty:
@@ -2092,7 +2089,7 @@ class ReportDetailFilteredView(LoginRequiredMixin, View):
         col = request.GET.get("col")
         col1 = request.GET.get("col1")
         col2 = request.GET.get("col2")
-        simple_aggregate = request.GET.get("simple_aggregate")
+        # simple_aggregate = request.GET.get("simple_aggregate")
 
         # Use temp_report instead of report for row_groups and column_groups
         row_fields = temp_report.row_groups_list
@@ -4554,7 +4551,7 @@ class ReportExportView(LoginRequiredMixin, View):
         preview_data = request.session.get(session_key, {})
         temp_report = self.create_temp_report(report, preview_data)
 
-        df, context = self.get_report_data(temp_report, request)
+        df, _context = self.get_report_data(temp_report, request)
 
         detail_view = ReportDetailView()
         detail_view.request = request
