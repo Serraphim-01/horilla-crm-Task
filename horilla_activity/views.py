@@ -377,67 +377,51 @@ class ActivityDetailTab(LoginRequiredMixin, HorillaDetailSectionView):
         context = super().get_context_data(**kwargs)
         obj = self.get_object()
 
-        if obj.activity_type == "meeting":
-            self.include_fields = [
-                "activity_type",
-                "subject",
-                "source",
-                "status",
+        # Base fields common to all activity types
+        base_fields = [
+            "activity_type",
+            "subject",
+            "source",
+            "status",
+            "description",
+            "assigned_to",
+        ]
+
+        # Activity type specific additional fields
+        type_fields_map = {
+            "meeting": [
                 "title",
                 "start_datetime",
                 "end_datetime",
                 "location",
                 "is_all_day",
-                "assigned_to",
                 "participants",
                 "meeting_host",
-                "description",
-                "assigned_to",
-            ]
-        elif obj.activity_type == "event":
-            self.include_fields = [
-                "activity_type",
-                "subject",
-                "source",
-                "status",
+            ],
+            "event": [
                 "title",
                 "start_datetime",
                 "end_datetime",
                 "location",
                 "is_all_day",
-                "assigned_to",
                 "participants",
-                "description",
-                "assigned_to",
-            ]
-
-        elif obj.activity_type == "task":
-            self.include_fields = [
-                "activity_type",
-                "subject",
-                "source",
-                "status",
+            ],
+            "task": [
                 "owner",
                 "task_priority",
                 "due_datetime",
-                "description",
-                "assigned_to",
-            ]
-
-        elif obj.activity_type == "log_call":
-            self.include_fields = [
-                "activity_type",
-                "subject",
-                "source",
-                "status",
+            ],
+            "log_call": [
                 "call_duration_display",
                 "call_duration_seconds",
                 "call_type",
                 "call_purpose",
                 "notes",
-                "description",
-                "assigned_to",
-            ]
+            ],
+        }
+
+        # Combine base fields with type-specific fields
+        self.include_fields = base_fields + type_fields_map.get(obj.activity_type, [])
 
         context["body"] = self.body or self.get_default_body()
         return context
@@ -586,6 +570,11 @@ class TaskListView(LoginRequiredMixin, HorillaListView):
     ]
 
     def get_queryset(self):
+        status_view_map = {
+            "pending": "ActivityTaskListPending",
+            "completed": "ActivityTaskListCompleted",
+        }
+
         queryset = super().get_queryset()
         object_id = self.kwargs.get("object_id")
         view_type = self.request.GET.get("view_type", "pending")
@@ -602,12 +591,9 @@ class TaskListView(LoginRequiredMixin, HorillaListView):
         else:
             queryset = queryset.none()
 
-        if view_type == "pending":
-            queryset = queryset.filter(status="pending")
-            self.view_id = "ActivityTaskListPending"
-        elif view_type == "completed":
-            queryset = queryset.filter(status="completed")
-            self.view_id = "ActivityTaskListCompleted"
+        if view_type in status_view_map:
+            queryset = queryset.filter(status=view_type)
+            self.view_id = status_view_map[view_type]
 
         return queryset
 
@@ -753,10 +739,14 @@ class MeetingListView(HorillaListView):
     ]
 
     def get_queryset(self):
+        status_view_map = {
+            "pending": "ActivityMeetingListPending",
+            "completed": "ActivityMeetingListCompleted",
+        }
+
         queryset = super().get_queryset()
         object_id = self.kwargs.get("object_id")
         view_type = self.request.GET.get("view_type", "pending")
-
         content_type_id = self.request.GET.get("content_type_id")
 
         if object_id and content_type_id:
@@ -772,12 +762,9 @@ class MeetingListView(HorillaListView):
         else:
             queryset = queryset.none()
 
-        if view_type == "pending":
-            queryset = queryset.filter(status="pending")
-            self.view_id = "ActivityMeetingListPending"
-        elif view_type == "completed":
-            queryset = queryset.filter(status="completed")
-            self.view_id = "ActivityMeetingListCompleted"
+        if view_type in status_view_map:
+            queryset = queryset.filter(status=view_type)
+            self.view_id = status_view_map[view_type]
 
         return queryset
 
@@ -879,10 +866,14 @@ class CallListView(HorillaListView):
     ]
 
     def get_queryset(self):
+        status_view_map = {
+            "pending": "ActivityCallListPending",
+            "completed": "ActivityCallListCompleted",
+        }
+
         queryset = super().get_queryset()
         object_id = self.kwargs.get("object_id")
         view_type = self.request.GET.get("view_type", "pending")
-
         content_type_id = self.request.GET.get("content_type_id")
 
         if object_id and content_type_id:
@@ -898,12 +889,9 @@ class CallListView(HorillaListView):
         else:
             queryset = queryset.none()
 
-        if view_type == "pending":
-            queryset = queryset.filter(status="pending")
-            self.view_id = "ActivityCallListPending"
-        elif view_type == "completed":
-            queryset = queryset.filter(status="completed")
-            self.view_id = "ActivityCallListCompleted"
+        if view_type in status_view_map:
+            queryset = queryset.filter(status=view_type)
+            self.view_id = status_view_map[view_type]
 
         return queryset
 
@@ -1063,10 +1051,15 @@ class EmailListView(HorillaListView):
         return action
 
     def get_queryset(self):
+        status_view_map = {
+            "sent": "activity-email-list-sent",
+            "draft": "activity-email-list-draft",
+            "scheduled": "activity-email-list-scheduled",
+        }
+
         queryset = super().get_queryset()
         object_id = self.kwargs.get("object_id")
         view_type = self.request.GET.get("view_type", "sent")
-
         content_type_id = self.request.GET.get("content_type_id")
 
         if object_id and content_type_id:
@@ -1080,15 +1073,9 @@ class EmailListView(HorillaListView):
         else:
             queryset = queryset.none()
 
-        if view_type == "sent":
-            queryset = queryset.filter(mail_status="sent")
-            self.view_id = "activity-email-list-sent"
-        elif view_type == "draft":
-            queryset = queryset.filter(mail_status="draft")
-            self.view_id = "activity-email-list-draft"
-        elif view_type == "scheduled":
-            queryset = queryset.filter(mail_status="scheduled")
-            self.view_id = "activity-email-list-scheduled"
+        if view_type in status_view_map:
+            queryset = queryset.filter(mail_status=view_type)
+            self.view_id = status_view_map[view_type]
 
         return queryset
 
@@ -1178,10 +1165,14 @@ class EventListView(HorillaListView):
     ]
 
     def get_queryset(self):
+        status_view_map = {
+            "pending": "ActivityEventListPending",
+            "completed": "ActivityEventListCompleted",
+        }
+
         queryset = super().get_queryset()
         object_id = self.kwargs.get("object_id")
         view_type = self.request.GET.get("view_type", "pending")
-
         content_type_id = self.request.GET.get("content_type_id")
 
         if object_id and content_type_id:
@@ -1197,12 +1188,9 @@ class EventListView(HorillaListView):
         else:
             queryset = queryset.none()
 
-        if view_type == "pending":
-            queryset = queryset.filter(status="pending")
-            self.view_id = "ActivityEventListPending"
-        elif view_type == "completed":
-            queryset = queryset.filter(status="completed")
-            self.view_id = "ActivityEventListCompleted"
+        if view_type in status_view_map:
+            queryset = queryset.filter(status=view_type)
+            self.view_id = status_view_map[view_type]
 
         return queryset
 
