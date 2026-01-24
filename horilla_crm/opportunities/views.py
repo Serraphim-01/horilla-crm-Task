@@ -884,6 +884,12 @@ class OpportunityRelatedLists(LoginRequiredMixin, HorillaRelatedListSectionView)
         """Property wrapper for excluded_related_lists."""
         return self.get_excluded_related_lists()
 
+    @excluded_related_lists.setter
+    def excluded_related_lists(self, value):
+        """Setter to allow parent view to set the value (but we ignore it)"""
+        # We ignore the setter since we calculate dynamically
+        pass
+
 
 @method_decorator(htmx_required, name="dispatch")
 class OpportunityContactRoleFormview(LoginRequiredMixin, HorillaSingleFormView):
