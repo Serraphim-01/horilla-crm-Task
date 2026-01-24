@@ -350,7 +350,7 @@ def get_field_verbose_name(field_name, model_class):
 def total_sum_excluding_aggregate(pivot_table, aggregate_column_name):
     """Return the sum of precomputed 'total' values from a pivot table (ignores aggregate column)."""
     total = 0
-    for row, values in pivot_table.items():
+    for _row, values in pivot_table.items():
         total += values.get("total", 0)  # Use precomputed total
     return total
 

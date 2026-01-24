@@ -16,6 +16,8 @@ class ReportFolderSerializer(serializers.ModelSerializer):
     )
 
     class Meta:
+        """Meta options for ReportFolderSerializer."""
+
         model = ReportFolder
         fields = "__all__"
 
@@ -27,5 +29,7 @@ class ReportSerializer(serializers.ModelSerializer):
     folder_details = ReportFolderSerializer(source="folder", read_only=True)
 
     class Meta:
+        """Meta options for ReportSerializer."""
+
         model = Report
         fields = "__all__"
