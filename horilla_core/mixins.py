@@ -21,11 +21,9 @@ class CompanyFilterMixin:
 
     def get_queryset(self):
         """Filter queryset by active company if set in request."""
-        qs = super().get_queryset()
+        queryset = super().get_queryset()
         company = getattr(self.request, "active_company", None)
-        if company:
-            qs = qs.filter(company=company)
-        return qs
+        return queryset.filter(company=company) if company else queryset
 
 
 class FiscalYearCalendarMixin:
@@ -364,6 +362,8 @@ class OwnerQuerysetMixin:
 
         else:
             allowed_users = User.objects.filter(id=user.id)
+
+        allowed_users = allowed_users.filter(is_active=True)
 
         for field_name, field in self.fields.items():
             model_field = self._meta.model._meta.get_field(field_name)
