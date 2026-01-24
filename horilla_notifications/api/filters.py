@@ -18,6 +18,8 @@ class NotificationFilter(django_filters.FilterSet):
     )
 
     class Meta:
+        """Meta class for NotificationFilter"""
+
         model = Notification
         fields = {
             "user": ["exact"],

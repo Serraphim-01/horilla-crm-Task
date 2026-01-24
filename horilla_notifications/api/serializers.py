@@ -15,6 +15,8 @@ class NotificationSerializer(serializers.ModelSerializer):
     user_details = HorillaUserSerializer(source="user", read_only=True)
 
     class Meta:
+        """Meta class for NotificationSerializer"""
+
         model = Notification
         fields = "__all__"
 
