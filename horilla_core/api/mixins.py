@@ -62,7 +62,7 @@ class BulkOperationsMixin:
 
         try:
             return queryset.filter(**filters)
-        except Exception as e:
+        except Exception:
             # Log the error or handle invalid filter fields
             return queryset
 

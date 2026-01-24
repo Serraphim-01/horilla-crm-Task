@@ -23,6 +23,8 @@ class CompanySerializer(serializers.ModelSerializer):
     """Serializer for Company model"""
 
     class Meta:
+        """Meta class for CompanySerializer"""
+
         model = Company
         fields = "__all__"
 
@@ -31,6 +33,8 @@ class DepartmentSerializer(serializers.ModelSerializer):
     """Serializer for Department model"""
 
     class Meta:
+        """Meta class for DepartmentSerializer"""
+
         model = Department
         fields = "__all__"
 
@@ -39,6 +43,8 @@ class RoleSerializer(serializers.ModelSerializer):
     """Serializer for Role model"""
 
     class Meta:
+        """Meta class for RoleSerializer"""
+
         model = Role
         fields = "__all__"
 
@@ -47,6 +53,8 @@ class HorillaUserSerializer(serializers.ModelSerializer):
     """Serializer for HorillaUser model"""
 
     class Meta:
+        """Meta class for HorillaUserSerializer"""
+
         model = User
         fields = "__all__"
         extra_kwargs = {"password": {"write_only": True}}
@@ -66,6 +74,8 @@ class BusinessHourSerializer(serializers.ModelSerializer):
     """Serializer for BusinessHour model"""
 
     class Meta:
+        """Meta class for BusinessHourSerializer"""
+
         model = BusinessHour
         fields = "__all__"
 
@@ -74,6 +84,8 @@ class TeamRoleSerializer(serializers.ModelSerializer):
     """Serializer for TeamRole model"""
 
     class Meta:
+        """Meta class for TeamRoleSerializer"""
+
         model = TeamRole
         fields = "__all__"
 
@@ -82,6 +94,8 @@ class CustomerRoleSerializer(serializers.ModelSerializer):
     """Serializer for CustomerRole model"""
 
     class Meta:
+        """Meta class for CustomerRoleSerializer"""
+
         model = CustomerRole
         fields = "__all__"
 
@@ -90,6 +104,8 @@ class PartnerRoleSerializer(serializers.ModelSerializer):
     """Serializer for PartnerRole model"""
 
     class Meta:
+        """Meta class for PartnerRoleSerializer"""
+
         model = PartnerRole
         fields = "__all__"
 
@@ -98,6 +114,8 @@ class ImportHistorySerializer(serializers.ModelSerializer):
     """Serializer for ImportHistory model"""
 
     class Meta:
+        """Meta class for ImportHistorySerializer"""
+
         model = ImportHistory
         fields = "__all__"
 
@@ -106,6 +124,8 @@ class HorillaAttachmentSerializer(serializers.ModelSerializer):
     """Serializer for HorillaAttachment model"""
 
     class Meta:
+        """Meta class for HorillaAttachmentSerializer"""
+
         model = HorillaAttachment
         fields = "__all__"
 
@@ -114,5 +134,7 @@ class HolidaySerializer(serializers.ModelSerializer):
     """Serializer for Holiday model"""
 
     class Meta:
+        """Meta class for HolidaySerializer"""
+
         model = Holiday
         fields = "__all__"

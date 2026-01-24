@@ -1,3 +1,13 @@
+"""
+Fiscal year service module for managing fiscal year operations.
+
+This module provides the FiscalYearService class which handles:
+- Creating and managing fiscal year configurations
+- Generating fiscal years, quarters, and periods
+- Managing fiscal year transitions and updates
+- Validating fiscal year configurations
+"""
+
 # Standard library imports
 from datetime import datetime, timedelta
 
@@ -45,8 +55,8 @@ class FiscalYearService:
         Generate current and next fiscal years based on configuration
         """
         FiscalYearInstance = apps.get_model("horilla_core", "FiscalYearInstance")
-        Quarter = apps.get_model("horilla_core", "Quarter")
-        Period = apps.get_model("horilla_core", "Period")
+        _Quarter = apps.get_model("horilla_core", "Quarter")
+        _Period = apps.get_model("horilla_core", "Period")
 
         current_year = timezone.now().year
         years_to_generate = [current_year, current_year + 1]

@@ -80,7 +80,7 @@ class ExportView(LoginRequiredMixin, TemplateView):
                 )
         except Exception as e:
             logger.error(e)
-            pass
+
         return models
 
     def post(self, request, *args, **kwargs):

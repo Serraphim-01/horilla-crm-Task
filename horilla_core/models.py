@@ -1661,7 +1661,7 @@ class FiscalYear(HorillaCoreModel):
         start_index = months.index(self.start_date_month)
         quarter_ranges = []
 
-        for i in range(4):
+        for _i in range(4):
             quarter_start = months[start_index % 12]
             quarter_end = months[(start_index + 2) % 12]
             quarter_ranges.append(
