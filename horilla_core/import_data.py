@@ -1537,7 +1537,6 @@ class ImportStep4View(View):
 
     def post(self, request, *args, **kwargs):
         """Handle the actual import when user clicks Import button"""
-        start_time = time.perf_counter()
 
         import_data = request.session.get("import_data", {})
         import_config = request.session.get("import_config", {})
@@ -1594,7 +1593,7 @@ class ImportStep4View(View):
             import_history.save()
 
             # Render success page with results
-            render_start = time.perf_counter()
+
             response = render(
                 request,
                 "import/import_success.html",
@@ -1625,7 +1624,6 @@ class ImportStep4View(View):
     def generate_error_csv(self, detailed_errors, import_data):
         """Generate a CSV file with original file structure plus error column"""
         try:
-            import_name = import_data.get("import_name", "import")
             original_filename = import_data.get("original_filename", "file")
 
             # Extract filename without extension for error file naming
@@ -1690,7 +1688,6 @@ class ImportStep4View(View):
 
     def process_import(self, import_data):
         """Process the import based on the provided import_data"""
-        start_time = time.perf_counter()
 
         # Database-specific batch size optimization
         is_postgres = connection.vendor == "postgresql"
@@ -1751,7 +1748,6 @@ class ImportStep4View(View):
 
         # Preload FK objects referenced in mappings
         fk_cache = {}
-        fk_start = time.perf_counter()
         for field, mapping in fk_mappings.items():
             related_model = field_metadata[field]["related_model"]
             fk_cache[field] = {
@@ -1760,7 +1756,6 @@ class ImportStep4View(View):
             }
 
         # Preload replace_values FKs
-        replace_start = time.perf_counter()
         for field, value in replace_values.items():
             if field_metadata[field]["is_fk"]:
                 related_model = field_metadata[field]["related_model"]
@@ -1772,7 +1767,6 @@ class ImportStep4View(View):
         with transaction.atomic():
             existing_objs = {}
             if match_fields and import_option in ["1", "2", "3"]:
-                filter_start = time.perf_counter()
                 filters = {
                     f"{f}__in": [
                         str(row.get(field_mappings.get(f, ""), "")).strip()
@@ -1788,7 +1782,6 @@ class ImportStep4View(View):
 
             # Group objects by changed fields for efficient updates
             updated_groups = defaultdict(list)
-            row_processing_start = time.perf_counter()
 
             for row_index, row_data in enumerate(data_rows, 1):
                 row_errors = []
@@ -2199,11 +2192,9 @@ class ImportStep4View(View):
                     )
 
             if created:
-                bulk_create_start = time.perf_counter()
                 model.objects.bulk_create(created, batch_size=create_batch_size)
                 created_count = len(created)
 
-            bulk_update_start = time.perf_counter()
             for fields, objs in updated_groups.items():
                 if fields:
                     for i in range(0, len(objs), update_batch_size):
@@ -2218,7 +2209,6 @@ class ImportStep4View(View):
         if detailed_errors:
             error_file_path = self.generate_error_csv(detailed_errors, import_data)
 
-        session_cleanup_start = time.perf_counter()
         if "import_data" in self.request.session:
             del self.request.session["import_data"]
             self.request.session.modified = True
@@ -2291,7 +2281,7 @@ class ImportStep4View(View):
 
     def read_file_data(self, file_path):
         """Read data from the uploaded file"""
-        start_time = time.perf_counter()
+
         full_path = default_storage.path(file_path)
         data_rows = []
         if file_path.endswith(".csv"):
