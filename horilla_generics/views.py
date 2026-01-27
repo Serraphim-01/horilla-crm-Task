@@ -2123,8 +2123,17 @@ class HorillaListView(ListView):
         if "remove_filter" in request.GET:
             return self.handle_remove_filter(request)
 
+        # Only process clear_all_filters if it's the only operation parameter
+        # Don't process if there's a search or other operations to prevent clearing search results
         if request.GET.get("clear_all_filters") == "true":
-            return self.handle_clear_all_filters(request)
+            # Check if this is a real clear operation (no search, no other filter operations)
+            has_search = request.GET.get("search", "").strip()
+            has_other_ops = request.GET.get("apply_filter") or request.GET.get(
+                "remove_filter"
+            )
+            # Only process if it's a standalone clear operation
+            if not has_search and not has_other_ops:
+                return self.handle_clear_all_filters(request)
 
         if request.GET.get("remove_filter_field") == "true":
             return HttpResponse("")
@@ -2151,6 +2160,197 @@ class HorillaListView(ListView):
             return render(request, self.template_name, context)
 
         return self.render_to_response(context)
+
+    def _add_reload_triggers(self, response, cleaned_query_string, main_url):
+        """Add simple script to reload sidebar and parent container after swap."""
+        if not self.filter_url_push:
+            return
+
+        # Only add script to list view responses (mainSession), not nav view responses
+        # Check if this is a list view by checking template name
+        if hasattr(self, "template_name") and self.template_name != "list_view.html":
+            return
+
+        # Only add script once globally, check if handler already exists
+        url = f"{main_url}?{cleaned_query_string}" if cleaned_query_string else main_url
+        reload_script = f"""<script>
+            if (!window._filterReloadHandlerAdded) {{
+                window._filterReloadHandlerAdded = true;
+                window._filterReloadInProgress = false;
+
+                const handler = function(event) {{
+                    // Only trigger for mainSession swap, and only once
+                    if (window._filterReloadInProgress) return;
+                    if (event.target.id !== 'mainSession') return;
+
+                    // CRITICAL: Prevent infinite loop - check if this swap is from our reload
+                    const requestPath = event.detail?.pathInfo?.requestPath || '';
+                    const isFromFilterClear = requestPath.includes('clear_all_filters') || requestPath.includes('remove_filter');
+
+                    // Only proceed if this is from filter clear/remove, not from our reload
+                    if (!isFromFilterClear) return;
+
+                    // Also check if the target element has our marker
+                    if (event.detail?.elt?.hasAttribute('data-filter-reload')) return;
+
+                    window._filterReloadInProgress = true;
+                    const url = '{url}';
+                    const sidebar = document.getElementById('settings-sidebar');
+                    const parentView = document.querySelector('[id$="-view"]:not(#mainSession):not(#navBar)');
+
+                    // Use setTimeout to ensure this happens after current swap completes
+                    setTimeout(function() {{
+                        let reloadCount = 0;
+                        const maxReloads = 2; // sidebar + parentView
+
+                        const checkComplete = function() {{
+                            reloadCount++;
+                            if (reloadCount >= maxReloads) {{
+                                setTimeout(function() {{
+                                    window._filterReloadInProgress = false;
+                                }}, 500);
+                            }}
+                        }};
+
+                        if (sidebar && !sidebar.hasAttribute('data-reloading')) {{
+                            sidebar.setAttribute('data-reloading', 'true');
+                            sidebar.setAttribute('data-filter-reload', 'true');
+                            htmx.ajax('GET', url, {{
+                                target: '#settings-sidebar',
+                                select: '#settings-sidebar',
+                                swap: 'outerHTML',
+                                headers: {{'X-Filter-Reload': 'true'}}
+                            }}).then(function() {{
+                                setTimeout(function() {{
+                                    sidebar.removeAttribute('data-reloading');
+                                    sidebar.removeAttribute('data-filter-reload');
+                                }}, 200);
+                                checkComplete();
+                            }}).catch(function() {{
+                                sidebar.removeAttribute('data-reloading');
+                                sidebar.removeAttribute('data-filter-reload');
+                                checkComplete();
+                            }});
+                        }} else {{
+                            checkComplete();
+                        }}
+
+                        if (parentView && !parentView.hasAttribute('data-reloading')) {{
+                            parentView.setAttribute('data-reloading', 'true');
+                            parentView.setAttribute('data-filter-reload', 'true');
+
+                            // Update hx-get attributes instead of reloading entire parent view
+                            // This prevents triggering hx-trigger="load" on navBar and mainSession
+                            const navBar = parentView.querySelector('#navBar');
+                            const mainSession = parentView.querySelector('#mainSession');
+                            const queryParams = url.includes('?') ? url.split('?')[1] : '';
+
+                            if (navBar) {{
+                                const navUrl = navBar.getAttribute('hx-get')?.split('?')[0] || '';
+                                navBar.setAttribute('hx-get', navUrl + (queryParams ? '?' + queryParams : ''));
+                            }}
+                            if (mainSession) {{
+                                const listUrl = mainSession.getAttribute('hx-get')?.split('?')[0] || '';
+                                mainSession.setAttribute('hx-get', listUrl + (queryParams ? '?' + queryParams : ''));
+                            }}
+
+                            // Update any text nodes showing request.GET.urlencode
+                            const walker = document.createTreeWalker(
+                                parentView,
+                                NodeFilter.SHOW_TEXT,
+                                null,
+                                false
+                            );
+                            let node;
+                            while (node = walker.nextNode()) {{
+                                const text = node.textContent.trim();
+                                if (text && (text.includes('search=') || text.includes('field=') || text.includes('clear_all_filters') || text.includes('operator=') || text.includes('value='))) {{
+                                    node.textContent = queryParams || '';
+                                }}
+                            }}
+
+                            parentView.removeAttribute('data-reloading');
+                            parentView.removeAttribute('data-filter-reload');
+                            checkComplete();
+                        }} else {{
+                            checkComplete();
+                        }}
+                    }}, 100);
+                }};
+
+                document.addEventListener('htmx:afterSwap', handler);
+            }}
+
+            // Clean up URL immediately if clear_all_filters or remove_filter is present
+            // This prevents filter operation params from persisting in subsequent requests
+            const cleanupUrl = function() {{
+                const urlParams = new URLSearchParams(window.location.search);
+                const hasFilterOps = urlParams.has('clear_all_filters') || urlParams.has('remove_filter');
+
+                if (hasFilterOps) {{
+                    // Remove filter operation params from URL immediately
+                    urlParams.delete('clear_all_filters');
+                    urlParams.delete('remove_filter');
+                    const cleanedParams = urlParams.toString();
+                    const baseUrl = window.location.pathname;
+                    const cleanedUrl = baseUrl + (cleanedParams ? '?' + cleanedParams : '');
+
+                    // Update browser URL immediately without page reload
+                    window.history.replaceState({{}}, '', cleanedUrl);
+
+                    // Update search input hx-get attribute
+                    const searchInput = document.getElementById('searchInput');
+                    if (searchInput) {{
+                        const hxGet = searchInput.getAttribute('hx-get');
+                        if (hxGet) {{
+                            const hxGetBase = hxGet.split('?')[0];
+                            const hxGetParams = new URLSearchParams(hxGet.includes('?') ? hxGet.split('?')[1] : '');
+                            hxGetParams.delete('clear_all_filters');
+                            hxGetParams.delete('remove_filter');
+                            const cleanedHxGetParams = hxGetParams.toString();
+                            searchInput.setAttribute('hx-get', hxGetBase + (cleanedHxGetParams ? '?' + cleanedHxGetParams : ''));
+                        }}
+                    }}
+
+                    // Update all sidebar links
+                    const sidebar = document.getElementById('settings-sidebar');
+                    if (sidebar) {{
+                        const sidebarLinks = sidebar.querySelectorAll('a[hx-get]');
+                        sidebarLinks.forEach(function(link) {{
+                            const hxGet = link.getAttribute('hx-get');
+                            if (hxGet && hxGet.includes('?')) {{
+                                const linkBase = hxGet.split('?')[0];
+                                const linkParams = new URLSearchParams(hxGet.split('?')[1]);
+                                linkParams.delete('clear_all_filters');
+                                linkParams.delete('remove_filter');
+                                const linkCleanedParams = linkParams.toString();
+                                link.setAttribute('hx-get', linkBase + (linkCleanedParams ? '?' + linkCleanedParams : ''));
+                            }}
+                        }});
+                    }}
+                }}
+            }};
+
+            // Run immediately (before any HTMX requests)
+            if (document.readyState === 'loading') {{
+                document.addEventListener('DOMContentLoaded', cleanupUrl);
+            }} else {{
+                cleanupUrl();
+            }}
+
+            // Also run after HTMX events
+            document.addEventListener('htmx:beforeRequest', function(event) {{
+                // Clean URL before any request to prevent filter ops from being sent
+                cleanupUrl();
+            }});
+            document.addEventListener('htmx:afterSwap', cleanupUrl);
+            document.addEventListener('htmx:afterSettle', cleanupUrl);
+        </script>"""
+
+        if isinstance(response.content, bytes):
+            response.content = response.content.decode("utf-8") + reload_script
+        else:
+            response.content = str(response.content) + reload_script
 
     def handle_remove_filter(self, request):
         """Handle removing a specific filter or the search parameter while preserving other query parameters."""
@@ -2245,11 +2445,13 @@ class HorillaListView(ListView):
         if new_fields:
             new_query_params["apply_filter"] = "true"
 
-        # Update request.GET with new query parameters
+        # Temporarily replace request.GET with cleaned params for rendering
+        original_get = request.GET
         request.GET = new_query_params
         self.object_list = self.get_queryset()
         context = self.get_context_data()
         response = render(request, self.template_name, context)
+        request.GET = original_get
 
         # Update URL for HX-Push-Url
         if self.filter_url_push:
@@ -2261,6 +2463,9 @@ class HorillaListView(ListView):
                 else current_path
             )
             response["HX-Push-Url"] = url
+            response["HX-Replace-Url"] = url
+            # Add reload triggers
+            self._add_reload_triggers(response, new_query_string, current_path)
         else:
             response["HX-Push-Url"] = "false"
 
@@ -2285,17 +2490,49 @@ class HorillaListView(ListView):
             if key not in filter_params:
                 for value in values:
                     new_query_params.appendlist(key, value)
+
+        # Make QueryDict immutable (Django standard)
+        new_query_params._mutable = False
+
+        # Temporarily replace request.GET with cleaned params for context and template rendering
+        # Clear any cached GET property and assign the new QueryDict
+        original_get = request.GET
+        original_query_string = request.META.get("QUERY_STRING", "")
+        new_query_string = new_query_params.urlencode()
+
+        # Clear cached GET property if it exists
+        if hasattr(request, "_get"):
+            delattr(request, "_get")
+
+        # Update both GET and META to ensure consistency
+        request.__dict__["GET"] = new_query_params
+        request.META["QUERY_STRING"] = new_query_string
+
         self.object_list = self.get_queryset()
         context = self.get_context_data()
+
         response = render(request, self.template_name, context)
+
+        # Restore original request.GET and META after rendering
+        request.__dict__["GET"] = original_get
+        request.META["QUERY_STRING"] = original_query_string
+
         if self.filter_url_push:
             new_query_string = new_query_params.urlencode()
             url = f"{self.main_url}" + (
                 f"?{new_query_string}" if new_query_string else ""
             )
             response["HX-Push-Url"] = url
+            response["HX-Replace-Url"] = url
+            # Add simple reload triggers
+            self._add_reload_triggers(response, new_query_string, self.main_url)
         else:
             response["HX-Push-Url"] = "false"
+
+        # Add cache control headers
+        response["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response["Pragma"] = "no-cache"
+        response["Expires"] = "0"
 
         return response
 
@@ -4706,6 +4943,16 @@ class HorillaRelatedListContentView(LoginRequiredMixin, DetailView):
         return render(request, self.template_name, context)
 
 
+class AttachmentListView(HorillaListView):
+    model = HorillaAttachment
+    columns = ["title", "created_by", "created_at"]
+    bulk_select_option = False
+    list_column_visibility = False
+    table_height = False
+    table_height_as_class = "h-[calc(_100vh_-_500px_)]"
+    table_width = False
+
+
 @method_decorator(htmx_required, name="dispatch")
 @method_decorator(
     permission_required_or_denied(
@@ -4721,7 +4968,6 @@ class HorillaNotesAttachementSectionView(DetailView):
 
     template_name = "notes_attachments.html"
     context_object_name = "obj"
-    columns = ["title", "created_by", "created_at"]
 
     def get_actions(self):
         """
@@ -4844,18 +5090,11 @@ class HorillaNotesAttachementSectionView(DetailView):
             content_type=content_type, object_id=object_id
         )
 
-        list_view = HorillaListView(model=HorillaAttachment)
-
+        list_view = AttachmentListView()
         list_view.request = self.request
         list_view.queryset = queryset
-        list_view.columns = self.columns
         list_view.view_id = f"attachments_{content_type.model}_{object_id}"
-        list_view.bulk_select_option = False
-        list_view.list_column_visibility = False
         list_view.actions = self.get_actions()
-        list_view.table_height = False
-        list_view.table_height_as_class = "h-[calc(_100vh_-_500px_)]"
-        list_view.table_width = False
         context = list_view.get_context_data(object_list=queryset)
         context.update(super().get_context_data())
         context["can_add_attachment"] = self.check_attachment_add_permission()
