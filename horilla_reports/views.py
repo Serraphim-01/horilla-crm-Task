@@ -23,6 +23,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import redirect_to_login
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import FieldDoesNotExist
 from django.db.models import ForeignKey, Q
 from django.http import Http404, HttpResponse, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
@@ -2347,6 +2348,20 @@ class ToggleAggregateView(LoginRequiredMixin, View):
         field_name = request.POST.get("field_name")
         session_key = f"report_preview_{report.pk}"
 
+        # Validate the field name exists on the model
+        if field_name:
+            model_class = report.model_class
+            try:
+                model_class._meta.get_field(field_name)
+            except FieldDoesNotExist:
+                messages.error(
+                    request,
+                    _(
+                        "Invalid field '{}'. This field does not exist on the model."
+                    ).format(field_name),
+                )
+                return HttpResponse(headers={"HX-Refresh": "true"})
+
         preview_data = request.session.get(session_key, {})
         current_aggregate = preview_data.get(
             "aggregate_columns", report.aggregate_columns
@@ -2650,6 +2665,20 @@ class AddColumnView(LoginRequiredMixin, View):
         field_name = request.POST.get("field_name")
         session_key = f"report_preview_{report.pk}"
 
+        # Validate the field name exists on the model
+        if field_name:
+            model_class = report.model_class
+            try:
+                model_class._meta.get_field(field_name)
+            except FieldDoesNotExist:
+                messages.error(
+                    request,
+                    _(
+                        "Invalid field '{}'. This field does not exist on the model."
+                    ).format(field_name),
+                )
+                return HttpResponse(headers={"HX-Refresh": "true"})
+
         # Get current preview data or start from original
         preview_data = request.session.get(session_key, {})
 
@@ -2806,6 +2835,20 @@ class AddFilterFieldView(LoginRequiredMixin, View):
         field_name = request.POST.get("field_name")
         session_key = f"report_preview_{report.pk}"
 
+        # Validate the field name exists on the model
+        if field_name:
+            model_class = report.model_class
+            try:
+                model_class._meta.get_field(field_name)
+            except FieldDoesNotExist:
+                messages.error(
+                    request,
+                    _(
+                        "Invalid field '{}'. This field does not exist on the model."
+                    ).format(field_name),
+                )
+                return HttpResponse(headers={"HX-Refresh": "true"})
+
         # Get current preview data or start from original
         preview_data = request.session.get(session_key, {})
 
@@ -2940,7 +2983,19 @@ class UpdateFilterOperatorView(View):
         detail_view.request = self.request
         detail_view.object = temp_report
         detail_view.kwargs = {"pk": report.pk}
-        context = detail_view.get_context_data()
+
+        try:
+            context = detail_view.get_context_data()
+        except (ValueError, TypeError) as e:
+            # Invalid filter value for field type
+            preview_data.pop("filters", None)
+            if preview_data:
+                request.session[session_key] = preview_data
+            else:
+                request.session.pop(session_key, None)
+            messages.error(request, _("Invalid filter value: {}").format(str(e)))
+            return HttpResponse(headers={"HX-Refresh": "true"})
+
         return render(request, "report_detail.html", context)
 
     def create_temp_report(self, original_report, preview_data):
@@ -3043,7 +3098,20 @@ class UpdateFilterValueView(LoginRequiredMixin, View):
         detail_view.request = self.request
         detail_view.object = temp_report
         detail_view.kwargs = {"pk": report.pk}
-        context = detail_view.get_context_data()
+
+        try:
+            context = detail_view.get_context_data()
+        except (ValueError, TypeError) as e:
+            # Invalid filter value for field type (e.g., text in numeric field)
+            # Revert the filter change from session
+            preview_data.pop("filters", None)
+            if preview_data:
+                request.session[session_key] = preview_data
+            else:
+                request.session.pop(session_key, None)
+            messages.error(request, _("Invalid filter value: {}").format(str(e)))
+            return HttpResponse(headers={"HX-Refresh": "true"})
+
         return render(request, "report_detail.html", context)
 
     def create_temp_report(self, original_report, preview_data):
@@ -3132,7 +3200,19 @@ class UpdateFilterLogicView(LoginRequiredMixin, View):
         detail_view.request = self.request
         detail_view.object = temp_report
         detail_view.kwargs = {"pk": report.pk}
-        context = detail_view.get_context_data()
+
+        try:
+            context = detail_view.get_context_data()
+        except (ValueError, TypeError) as e:
+            # Invalid filter value for field type
+            preview_data.pop("filters", None)
+            if preview_data:
+                request.session[session_key] = preview_data
+            else:
+                request.session.pop(session_key, None)
+            messages.error(request, _("Invalid filter value: {}").format(str(e)))
+            return HttpResponse(headers={"HX-Refresh": "true"})
+
         return render(request, "report_detail.html", context)
 
     def create_temp_report(self, original_report, preview_data):
@@ -3257,6 +3337,20 @@ class ToggleRowGroupView(LoginRequiredMixin, View):
         report = get_object_or_404(Report, pk=pk)
         field_name = request.POST.get("field_name")
         session_key = f"report_preview_{report.pk}"
+
+        # Validate the field name exists on the model
+        if field_name:
+            model_class = report.model_class
+            try:
+                model_class._meta.get_field(field_name)
+            except FieldDoesNotExist:
+                messages.error(
+                    request,
+                    _(
+                        "Invalid field '{}'. This field does not exist on the model."
+                    ).format(field_name),
+                )
+                return HttpResponse(headers={"HX-Refresh": "true"})
 
         # Get current preview data or start from original
         preview_data = request.session.get(session_key, {})
@@ -3407,6 +3501,20 @@ class ToggleColumnGroupView(LoginRequiredMixin, View):
         field_name = request.POST.get("field_name")
         session_key = f"report_preview_{report.pk}"
 
+        # Validate the field name exists on the model
+        if field_name:
+            model_class = report.model_class
+            try:
+                model_class._meta.get_field(field_name)
+            except FieldDoesNotExist:
+                messages.error(
+                    request,
+                    _(
+                        "Invalid field '{}'. This field does not exist on the model."
+                    ).format(field_name),
+                )
+                return HttpResponse(headers={"HX-Refresh": "true"})
+
         preview_data = request.session.get(session_key, {})
 
         current_column_groups = preview_data.get("column_groups", report.column_groups)
@@ -3520,22 +3628,20 @@ class RemoveColumnGroupView(LoginRequiredMixin, View):
         """
 
         temp_report = copy.copy(original_report)
-        if "selected_columns" in preview_data:
-            temp_report.selected_columns = preview_data["selected_columns"]
-        if "row_groups" in preview_data:
-            temp_report.row_groups = preview_data["row_groups"]
-        if "column_groups" in preview_data:
-            temp_report.column_groups = preview_data["column_groups"]
-        if "aggregate_columns" in preview_data:
-            temp_report.aggregate_columns = preview_data["aggregate_columns"]
-        if "filters" in preview_data:
-            temp_report.filters = preview_data["filters"]
-        if "chart_type" in preview_data:
-            temp_report.chart_type = preview_data["chart_type"]
-        if "chart_field" in preview_data:
-            temp_report.chart_field = preview_data["chart_field"]
-        if "chart_field_stacked" in preview_data:
-            temp_report.chart_field_stacked = preview_data["chart_field_stacked"]
+        fields = (
+            "selected_columns",
+            "row_groups",
+            "column_groups",
+            "aggregate_columns",
+            "filters",
+            "chart_type",
+            "chart_field",
+            "chart_field_stacked",
+        )
+
+        for field in fields:
+            if field in preview_data:
+                setattr(temp_report, field, preview_data[field])
         return temp_report
 
 
@@ -3588,22 +3694,19 @@ class RemoveAggregateColumnView(LoginRequiredMixin, View):
         """Create a temporary report object with preview data applied for RemoveAggregateColumnView."""
 
         temp_report = copy.copy(original_report)
-        if "selected_columns" in preview_data:
-            temp_report.selected_columns = preview_data["selected_columns"]
-        if "row_groups" in preview_data:
-            temp_report.row_groups = preview_data["row_groups"]
-        if "column_groups" in preview_data:
-            temp_report.column_groups = preview_data["column_groups"]
-        if "aggregate_columns" in preview_data:
-            temp_report.aggregate_columns = preview_data["aggregate_columns"]
-        if "filters" in preview_data:
-            temp_report.filters = preview_data["filters"]
-        if "chart_type" in preview_data:
-            temp_report.chart_type = preview_data["chart_type"]
-        if "chart_field" in preview_data:
-            temp_report.chart_field = preview_data["chart_field"]
-        if "chart_field_stacked" in preview_data:
-            temp_report.chart_field_stacked = preview_data["chart_field_stacked"]
+        fields = (
+            "selected_columns",
+            "row_groups",
+            "column_groups",
+            "aggregate_columns",
+            "filters",
+            "chart_type",
+            "chart_field",
+            "chart_field_stacked",
+        )
+        for field in fields:
+            if field in preview_data:
+                setattr(temp_report, field, preview_data[field])
 
         return temp_report
 
@@ -3699,18 +3802,16 @@ class SearchAvailableFieldsView(LoginRequiredMixin, DetailView):
         """Create a temporary report object with preview data"""
 
         temp_report = copy.copy(original_report)
-
-        # Apply preview changes
-        if "selected_columns" in preview_data:
-            temp_report.selected_columns = preview_data["selected_columns"]
-        if "row_groups" in preview_data:
-            temp_report.row_groups = preview_data["row_groups"]
-        if "column_groups" in preview_data:
-            temp_report.column_groups = preview_data["column_groups"]
-        if "aggregate_columns" in preview_data:
-            temp_report.aggregate_columns = preview_data["aggregate_columns"]
-        if "filters" in preview_data:
-            temp_report.filters = preview_data["filters"]
+        fields = (
+            "selected_columns",
+            "row_groups",
+            "column_groups",
+            "aggregate_columns",
+            "filters",
+        )
+        for field in fields:
+            if field in preview_data:
+                setattr(temp_report, field, preview_data[field])
 
         return temp_report
 
@@ -3837,22 +3938,19 @@ class ChangeChartFieldView(LoginRequiredMixin, HorillaSingleFormView):
     def create_temp_report(self, original_report, preview_data):
         """Create a temporary report object with preview data applied"""
         temp_report = copy.copy(original_report)
-        if "selected_columns" in preview_data:
-            temp_report.selected_columns = preview_data["selected_columns"]
-        if "row_groups" in preview_data:
-            temp_report.row_groups = preview_data["row_groups"]
-        if "column_groups" in preview_data:
-            temp_report.column_groups = preview_data["column_groups"]
-        if "aggregate_columns" in preview_data:
-            temp_report.aggregate_columns = preview_data["aggregate_columns"]
-        if "filters" in preview_data:
-            temp_report.filters = preview_data["filters"]
-        if "chart_type" in preview_data:
-            temp_report.chart_type = preview_data["chart_type"]
-        if "chart_field" in preview_data:
-            temp_report.chart_field = preview_data["chart_field"]
-        if "chart_field_stacked" in preview_data:
-            temp_report.chart_field_stacked = preview_data["chart_field_stacked"]
+        fields = (
+            "selected_columns",
+            "row_groups",
+            "column_groups",
+            "aggregate_columns",
+            "filters",
+            "chart_type",
+            "chart_field",
+            "chart_field_stacked",
+        )
+        for field in fields:
+            if field in preview_data:
+                setattr(temp_report, field, preview_data[field])
         return temp_report
 
     def form_valid(self, form):
