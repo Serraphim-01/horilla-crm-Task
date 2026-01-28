@@ -1,3 +1,105 @@
+/* ==========================================================================
+   Summernote XSS Protection - Sanitizes HTML before rendering
+   ========================================================================== */
+(function() {
+    if (typeof DOMPurify === 'undefined' || typeof $ === 'undefined') return;
+
+    var purifyConfig = {
+        ALLOWED_TAGS: ['p', 'br', 'b', 'i', 'u', 'strong', 'em', 'ul', 'ol', 'li',
+            'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre',
+            'a', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+            'span', 'div', 'hr', 'sub', 'sup', 'strike', 's', 'font', 'video'],
+        ALLOWED_ATTR: ['href', 'title', 'target', 'src', 'alt', 'width', 'height',
+            'style', 'border', 'cellpadding', 'cellspacing', 'colspan', 'rowspan',
+            'color', 'face', 'size', 'controls', 'class'],
+        ALLOW_DATA_ATTR: false,
+        FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'applet', 'link', 'form', 'input', 'button', 'svg', 'math'],
+        FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur',
+            'onmouseout', 'onkeydown', 'onkeyup', 'onkeypress', 'onchange', 'onsubmit',
+            'onmousedown', 'onmouseup', 'ondblclick', 'oncontextmenu', 'ondrag', 'ondrop']
+    };
+
+    // Function to sanitize code area content
+    function sanitizeCodeArea($editor) {
+        var $codeArea = $editor.find('.note-codable');
+        if ($codeArea.length) {
+            var rawCode = $codeArea.val();
+            var sanitized = DOMPurify.sanitize(rawCode, purifyConfig);
+            if (rawCode !== sanitized) {
+                $codeArea.val(sanitized);
+            }
+        }
+    }
+
+    // Intercept codeview button clicks BEFORE summernote processes them
+    // This ensures we sanitize the code textarea content before it gets rendered
+    // Using multiple selectors to cover different Summernote versions
+    $(document).on('mousedown touchstart', [
+        '.note-btn[data-original-title="Code View"]',
+        '.note-btn.btn-codeview',
+        'button[data-tooltip="codeview"]',
+        '.btn-codeview',
+        '[data-name="codeview"]',
+        '.note-toolbar button:contains("</>")'
+    ].join(', '), function(e) {
+        var $btn = $(this);
+        var $editor = $btn.closest('.note-editor');
+        var isInCodeView = $editor.hasClass('codeview');
+
+        // If currently in code view and about to switch to normal view
+        if (isInCodeView) {
+            sanitizeCodeArea($editor);
+        }
+    });
+
+    // Also catch keyboard shortcut (Ctrl+Shift+C or Cmd+Shift+C)
+    $(document).on('keydown', '.note-codable', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'C' || e.key === 'c' || e.keyCode === 67)) {
+            var $editor = $(this).closest('.note-editor');
+            sanitizeCodeArea($editor);
+        }
+    });
+
+    // Patch jQuery's html() method for .note-editable elements to sanitize content
+    var originalHtml = $.fn.html;
+    $.fn.html = function(value) {
+        if (value !== undefined && this.hasClass('note-editable')) {
+            value = DOMPurify.sanitize(value, purifyConfig);
+        }
+        return originalHtml.apply(this, arguments.length ? [value] : []);
+    };
+
+    // Also intercept when summernote sets content via 'code' command
+    $(document).on('summernote.codeview.toggled', function(e, isCodeView) {
+        if (!isCodeView) {
+            var $target = $(e.target);
+            setTimeout(function() {
+                try {
+                    var content = $target.summernote('code');
+                    var sanitized = DOMPurify.sanitize(content, purifyConfig);
+                    if (content !== sanitized) {
+                        $target.summernote('code', sanitized);
+                    }
+                } catch(err) {}
+            }, 0);
+        }
+    });
+
+    // Sanitize on paste globally
+    $(document).on('summernote.paste', function(e) {
+        var $target = $(e.target);
+        setTimeout(function() {
+            try {
+                var content = $target.summernote('code');
+                var sanitized = DOMPurify.sanitize(content, purifyConfig);
+                if (content !== sanitized) {
+                    $target.summernote('code', sanitized);
+                }
+            } catch(err) {}
+        }, 50);
+    });
+})();
+
 // Internationalization messages
 const horillaMessages = {
     confirm: gettext("Confirm"),
