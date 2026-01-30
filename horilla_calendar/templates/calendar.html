@@ -231,6 +231,35 @@
 
 
 
+            // HTML escaping function to prevent XSS attacks
+            function escapeHtml(text) {
+                if (text == null || text === undefined) {
+                    return '';
+                }
+                const map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+                return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
+            }
+
+            // JavaScript string escaping for use in onclick handlers and similar contexts
+            function escapeJsString(text) {
+                if (text == null || text === undefined) {
+                    return '';
+                }
+                return String(text)
+                    .replace(/\\/g, '\\\\')  // Escape backslashes first
+                    .replace(/'/g, "\\'")     // Escape single quotes
+                    .replace(/"/g, '\\"')     // Escape double quotes
+                    .replace(/\n/g, '\\n')    // Escape newlines
+                    .replace(/\r/g, '\\r')    // Escape carriage returns
+                    .replace(/\t/g, '\\t');   // Escape tabs
+            }
+
             function initCalendar() {
 
                 if (window.calendarInitialized) {
@@ -338,20 +367,30 @@
 
                         if (event.extendedProps.calendarType === 'unavailability') {
                             // Content for unavailability events
+                            const safeTitle = escapeHtml(event.title);
+                            const safeDescription = escapeHtml(event.extendedProps.description || 'No reason provided');
+                            const safeEventId = escapeHtml(event.id);
+                            const safeEventUrl = escapeHtml(event.url || '');
+                            const safeDeleteUrl = escapeHtml(event.extendedProps.deleteUrl || '');
+
                             content = `
                                 <div class="flex flex-col gap-2">
-                                    <h5>${event.title}</h5>
-                                    <p><strong>{% trans 'Reason' %}:</strong> ${event.extendedProps.description || 'No reason provided'}</p>
+                                    <h5>${safeTitle}</h5>
+                                    <p><strong>{% trans 'Reason' %}:</strong> ${safeDescription}</p>
                                     <div class="flex gap-1"><strong>{% trans 'Start Date' %}:</strong> ${event.start?.toLocaleString()}</div>
                                     <div class="flex gap-1"><strong>{% trans 'End Date' %}:</strong> ${event.end?.toLocaleString() || 'N/A'}</div>
                                 </div>
                             `;
                             // Icons for unavailability (only Edit and Delete)
+                            const safeEventIdJs = escapeJsString(event.id);
+                            const safeEventUrlJs = escapeJsString(event.url || '');
+                            const safeDeleteUrlJs = escapeJsString(event.extendedProps.deleteUrl || '');
+
                             icons = `
                                 <div class="flex gap-3 mt-2">
                                 ${ window.hasUnavailabilityChangeOwnPerm ? `
                                     <button
-                                        onclick="editEvent('${event.id}', '${event.url}')"
+                                        onclick="editEvent('${safeEventIdJs}', '${safeEventUrlJs}')"
                                         class="text-blue-600 hover:text-blue-800"
                                     >
                                         <i class="fas fa-edit"></i> {% trans 'Edit' %}
@@ -359,7 +398,7 @@
                                     ` : ''}
                                     ${window.hasUnavailabilityDeletePerm ? `
                                     <button
-                                        onclick="deleteEvent('${event.id}', '${event.extendedProps.deleteUrl}')"
+                                        onclick="deleteEvent('${safeEventIdJs}', '${safeDeleteUrlJs}')"
                                         class="text-red-600 hover:text-red-800"
                                     >
                                         <i class="fas fa-trash"></i> {% trans 'Delete' %}
@@ -374,18 +413,28 @@
                             const assignedToList = event.extendedProps.assignedTo || [];
                             const clientName = assignedToList.map(user => user.first_name).join(", ") || "No assigned user";
 
+                            // Escape all user inputs to prevent XSS
+                            const safeTitle = escapeHtml(event.title);
+                            const safeSubject = escapeHtml(subject);
+                            const safeClientName = escapeHtml(clientName);
+                            const safeStatus = escapeHtml(status);
+                            const safeEventId = escapeHtml(event.id);
+                            const safeEventUrl = escapeHtml(event.url || '');
+                            const safeDeleteUrl = escapeHtml(event.extendedProps.deleteUrl || '');
+                            const safeDetailUrl = escapeHtml(event.extendedProps.detailUrl || '');
+
                             content = `
                                 <div class="flex flex-col gap-2">
-                                    <h5>${event.title}</h5>
-                                    <span class="para"><strong>{% trans 'Subject' %}:</strong> ${subject}</span>
+                                    <h5>${safeTitle}</h5>
+                                    <span class="para"><strong>{% trans 'Subject' %}:</strong> ${safeSubject}</span>
                                     <div class="flex gap-1"><strong>{% trans 'Start Date' %}:</strong> ${event.start?.toLocaleString()}</div>
                                     <div class="flex gap-1"><strong>{% trans 'End Date' %}:</strong> ${event.end?.toLocaleString()}</div>
-                                    <p><strong>{% trans 'Assigned to' %}:</strong> ${clientName}</p>
-                                    <p><strong>{% trans 'Status' %}:</strong> ${status}</p>
+                                    <p><strong>{% trans 'Assigned to' %}:</strong> ${safeClientName}</p>
+                                    <p><strong>{% trans 'Status' %}:</strong> ${safeStatus}</p>
                                     ${status === "pending" && window.statusFieldPermission === "readwrite" ? `
                                      <div class="radio-group">
                                         <label>
-                                            <input type="radio" name="status" value="complete" onclick="updateEventStatus('${event.id}', 'completed')"> {% trans 'Mark as Complete' %}
+                                            <input type="radio" name="status" value="complete" onclick="updateEventStatus('${escapeJsString(event.id)}', 'completed')"> {% trans 'Mark as Complete' %}
                                             <span class="custom-radio"></span>
                                         </label>
                                     </div>
@@ -393,11 +442,16 @@
                                 </div>
                             `;
                             // Icons for other activities (Edit, Delete, Info)
+                            const safeEventIdJs = escapeJsString(event.id);
+                            const safeEventUrlJs = escapeJsString(event.url || '');
+                            const safeDeleteUrlJs = escapeJsString(event.extendedProps.deleteUrl || '');
+                            const safeDetailUrlJs = escapeJsString(event.extendedProps.detailUrl || '');
+
                             icons = `
                                 <div class="flex gap-3 mt-2">
                                 ${window.hasActivityChangeOwnPerm ? `
                                     <button
-                                        onclick="editEvent('${event.id}', '${event.url}')"
+                                        onclick="editEvent('${safeEventIdJs}', '${safeEventUrlJs}')"
                                         class="text-blue-600 hover:text-blue-800"
                                     >
                                         <i class="fas fa-edit"></i> {% trans 'Edit' %}
@@ -405,7 +459,7 @@
                                     ` : '' }
                                     ${window.hasActivityDeletePerm ? `
                                     <button
-                                        onclick="deleteEvent('${event.id}', '${event.extendedProps.deleteUrl}')"
+                                        onclick="deleteEvent('${safeEventIdJs}', '${safeDeleteUrlJs}')"
                                         class="text-red-600 hover:text-red-800"
                                     >
                                         <i class="fas fa-trash"></i> {% trans 'Delete' %}
@@ -413,7 +467,7 @@
                                     ` : '' }
                                     ${window.hasActivityViewOwnPerm ? `
                                     <button
-                                        onclick="showEventInfo('${event.id}', '${event.extendedProps.detailUrl}')"
+                                        onclick="showEventInfo('${safeEventIdJs}', '${safeDetailUrlJs}')"
                                         class="text-gray-600 hover:text-gray-800"
                                     >
                                         <i class="fas fa-info-circle"></i> {% trans 'Info' %}
@@ -437,12 +491,15 @@
                             const containerRect = calendarEl.getBoundingClientRect();
                             const clickedDate = info.dateStr;
 
+                            // Escape the date to prevent XSS (for JavaScript context)
+                            const safeClickedDate = escapeJsString(clickedDate);
+
                             let content = '<div class="flex flex-col gap-2">';
 
                             if (window.hasActivityCreatePerm) {
                                 content += `
                                     <button
-                                        onclick="createNewActivity('${clickedDate}')"
+                                        onclick="createNewActivity('${safeClickedDate}')"
                                         class="text-blue-600 hover:underline text-sm"
                                     >
                                         {% trans 'New Activity' %}
@@ -453,7 +510,7 @@
                             if (window.hasUnavailabilityCreatePerm) {
                                 content += `
                                     <button
-                                        onclick="markDateUnavailable('${clickedDate}')"
+                                        onclick="markDateUnavailable('${safeClickedDate}')"
                                         class="text-red-600 hover:underline text-sm"
                                     >
                                         {% trans 'Mark as Unavailable' %}
