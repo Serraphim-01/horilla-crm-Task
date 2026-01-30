@@ -85,6 +85,7 @@ class ComponentCriteriaSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def get_component_details(self, obj):
+        """Return minimal component details."""
         if obj.component:
             return {
                 "id": obj.component.id,
