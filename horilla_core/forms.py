@@ -689,7 +689,7 @@ class UserFormClass(HorillaMultiStepForm):
             "is_active",
         ],
         2: ["country", "state", "city", "zip_code"],
-        3: ["department", "role"],
+        3: ["department", "role", "company"],
         4: [
             "language",
             "time_zone",
@@ -777,6 +777,7 @@ class UserFormSingle(HorillaModelForm):
             "zip_code",
             "department",
             "role",
+            "company",
             "language",
             "time_zone",
             "date_format",
@@ -1115,20 +1116,6 @@ class AddUsersToRoleForm(forms.Form):
 
     role = forms.ModelChoiceField(
         queryset=Role.objects.all(),
-        label=_("Role"),
-        help_text=_("Select the role to assign to users."),
-        widget=forms.Select(
-            attrs={
-                "class": "select2-pagination w-full",
-                "data-url": reverse_lazy(
-                    f"horilla_generics:model_select2",
-                    kwargs={"app_label": "horilla_core", "model_name": "Role"},
-                ),
-                "data-placeholder": f"Select role",
-                "data-field-name": "role",
-                "id": f"id_role",
-            }
-        ),
     )
     users = forms.ModelMultipleChoiceField(
         queryset=User.objects.all(),
@@ -1138,16 +1125,16 @@ class AddUsersToRoleForm(forms.Form):
             attrs={
                 "class": "select2-pagination w-full",
                 "data-url": reverse_lazy(
-                    f"horilla_generics:model_select2",
+                    "horilla_generics:model_select2",
                     kwargs={
                         "app_label": "horilla_core",
                         "model_name": str(User.__name__),
                     },
                 ),
-                "data-placeholder": f"Select user",
+                "data-placeholder": "Select user",
                 "multiple": "multiple",
                 "data-field-name": "users",
-                "id": f"id_users",
+                "id": "id_users",
             }
         ),
     )
@@ -1179,7 +1166,7 @@ class AddUsersToRoleForm(forms.Form):
             duplicates = users.filter(role=role)
             if duplicates.exists():
                 raise forms.ValidationError(
-                    _(f"The following user(s) are already assigned to this role")
+                    _("The following user(s) are already assigned to this role")
                 )
 
         return cleaned_data
