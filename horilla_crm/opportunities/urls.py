@@ -381,4 +381,9 @@ urlpatterns = [
         opportunity_team.AddDefaultTeamView.as_view(),
         name="add_default_team",
     ),
+    path(
+        "select-closed-stage/<int:pk>/",
+        views.SelectClosedStageView.as_view(),
+        name="select_closed_stage",
+    ),
 ]

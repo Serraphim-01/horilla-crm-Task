@@ -6,12 +6,14 @@ from urllib.parse import urlencode
 # Third-party imports (Django)
 from django.apps import apps
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpResponse
+from django.db.models import ForeignKey
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.utils.functional import cached_property  # type: ignore
 from django.utils.translation import gettext_lazy as _
+from django.views import View
 
 # First-party / Horilla imports
 from horilla_activity.views import HorillaActivitySectionView
@@ -514,6 +516,213 @@ class OpportunityDetailView(RecentlyViewedMixin, LoginRequiredMixin, HorillaDeta
         "forecast_category",
     ]
 
+    def get_badges(self):
+        """Get badges for opportunity detail view based on stage type."""
+        badges = []
+        obj = self.get_object()
+
+        if obj.stage and hasattr(obj.stage, "stage_type"):
+            stage_type = obj.stage.stage_type
+            if stage_type == "won":
+                badges.append(
+                    {
+                        "label": _("Closed Won"),
+                        "class": "bg-green-600",
+                        "icon": "fa-solid fa-check",
+                        "icon_class": "text-green-600",
+                        "icon_bg_class": "bg-green-100",
+                    }
+                )
+            elif stage_type == "lost":
+                badges.append(
+                    {
+                        "label": _("Closed Lost"),
+                        "class": "bg-red-600",
+                        "icon": "fa-solid fa-times",
+                        "icon_class": "text-red-600",
+                        "icon_bg_class": "bg-red-100",
+                    }
+                )
+
+        return badges
+
+    def get_pipeline_choices(self):
+        """
+        Override to group Closed Won and Closed Lost into a single "Closed" option.
+        """
+        if not self.pipeline_field:
+            return []
+        try:
+            obj = self.get_object()
+        except Http404:
+            return []
+
+        field = self.model._meta.get_field(self.pipeline_field)
+        current_value = getattr(obj, self.pipeline_field)
+
+        pipeline = []
+
+        if isinstance(field, ForeignKey):
+            related_model = field.related_model
+            order_field = None
+            try:
+                order_field = related_model._meta.get_field("order")
+            except Exception:
+                pass
+            queryset = related_model.objects.all()
+
+            if (
+                hasattr(related_model, "company")
+                and hasattr(obj, "company")
+                and obj.company
+            ):
+                queryset = queryset.filter(company=obj.company)
+
+            if order_field:
+                queryset = queryset.order_by("order")
+
+            current_order = (
+                getattr(current_value, "order", None) if current_value else None
+            )
+            current_id = current_value.id if current_value else None
+            current_stage_type = (
+                getattr(current_value, "stage_type", None) if current_value else None
+            )
+
+            closed_won_stage = None
+            closed_lost_stage = None
+            closed_stage_order = None
+            is_current_closed = False
+            is_closed_lost = current_stage_type == "lost"
+
+            for related_obj in queryset:
+                stage_type = getattr(related_obj, "stage_type", None)
+
+                # Collect closed stages
+                if stage_type == "won":
+                    closed_won_stage = related_obj
+                    if related_obj.id == current_id:
+                        is_current_closed = True
+                        closed_stage_order = getattr(related_obj, "order", None)
+                elif stage_type == "lost":
+                    closed_lost_stage = related_obj
+                    if related_obj.id == current_id:
+                        is_current_closed = True
+                        closed_stage_order = getattr(related_obj, "order", None)
+                else:
+                    # Regular open stages
+                    is_completed = False
+                    is_current = related_obj.id == current_id
+                    is_final = getattr(related_obj, "is_final", False)
+
+                    # If current stage is "Closed Lost", don't mark other stages as completed
+                    # They should appear gray/ash instead of green
+                    if not is_closed_lost and current_order is not None:
+                        related_order = getattr(related_obj, "order", None)
+                        is_completed = (
+                            related_order is not None and related_order < current_order
+                        )
+
+                    pipeline.append(
+                        (
+                            str(related_obj),
+                            related_obj.id,
+                            is_completed,
+                            is_current,
+                            is_final,
+                            False,  # Not closed won
+                        )
+                    )
+
+            # Add "Closed" as a single option if closed stages exist
+            if closed_won_stage or closed_lost_stage:
+                # Determine if closed is completed (if current stage is after closed stages)
+                is_closed_completed = False
+                if current_order is not None and closed_stage_order is not None:
+                    is_closed_completed = closed_stage_order < current_order
+                elif (
+                    current_stage_type not in ["won", "lost"]
+                    and current_order is not None
+                ):
+                    # If we have a closed stage order, check if current is after it
+                    if closed_won_stage:
+                        closed_order = getattr(closed_won_stage, "order", None)
+                        if closed_order and current_order > closed_order:
+                            is_closed_completed = True
+                    elif closed_lost_stage:
+                        closed_order = getattr(closed_lost_stage, "order", None)
+                        if closed_order and current_order > closed_order:
+                            is_closed_completed = True
+
+                # If current stage is closed, show the actual stage name
+                if is_current_closed and current_value:
+                    # Check if it's closed (won or lost) - both need custom styling
+                    is_closed = current_stage_type in ["won", "lost"]
+                    # Show the actual closed stage name
+                    pipeline.append(
+                        (
+                            str(
+                                current_value
+                            ),  # Show actual stage name (e.g., "Closed Won" or "Closed Lost")
+                            current_value.id,
+                            is_closed_completed,
+                            True,  # This is the current stage
+                            True,  # Mark as final stage
+                            is_closed,  # Flag to indicate if it's closed (won or lost) for custom styling
+                        )
+                    )
+                else:
+                    # Show "Closed" option that opens the selection modal
+                    pipeline.append(
+                        (
+                            _("Closed"),
+                            "closed",  # Special identifier for closed stage
+                            is_closed_completed,
+                            False,  # Not current if we're showing "Closed"
+                            True,  # Mark as final stage
+                            False,  # Not closed won
+                        )
+                    )
+        else:
+            return []
+
+        return pipeline
+
+    @cached_property
+    def final_stage_action(self):
+        """Final stage action for opportunity - opens closed stage selection modal."""
+        return {
+            "hx-get": reverse_lazy(
+                "opportunities:select_closed_stage", kwargs={"pk": self.object.pk}
+            ),
+            "hx-target": "#modalBox",
+            "hx-swap": "innerHTML",
+            "onclick": "openModal()",
+        }
+
+    def get_pipeline_custom_colors(self):
+        """
+        Get custom colors for pipeline stages.
+        Returns a dict with bg_color, text_color, and hover_color (optional).
+        If None, default colors will be used.
+        """
+        obj = self.get_object()
+        if obj.stage and hasattr(obj.stage, "stage_type"):
+            stage_type = obj.stage.stage_type
+            if stage_type == "won":
+                return {
+                    "bg_color": "bg-green-600",
+                    "text_color": "text-white",
+                    "hover_color": None,  # No hover for closed won
+                }
+            elif stage_type == "lost":
+                return {
+                    "bg_color": "bg-red-600",
+                    "text_color": "text-white",
+                    "hover_color": None,  # No hover for closed lost
+                }
+        return None
+
 
 @method_decorator(
     permission_required_or_denied(
@@ -985,3 +1194,84 @@ class OpportunityContactRoleDeleteView(LoginRequiredMixin, HorillaSingleDeleteVi
         return HttpResponse(
             "<script>htmx.trigger('#tab-contact-btn','click');</script>"
         )
+
+
+@method_decorator(htmx_required, name="dispatch")
+@method_decorator(
+    permission_required_or_denied(
+        ["opportunities.change_opportunity", "opportunities.change_own_opportunity"]
+    ),
+    name="dispatch",
+)
+class SelectClosedStageView(LoginRequiredMixin, View):
+    """View to select between Closed Won and Closed Lost stages."""
+
+    def get(self, request, *args, **kwargs):
+        """Render the closed stage selection modal."""
+        opportunity = get_object_or_404(Opportunity, pk=kwargs.get("pk"))
+
+        # Get closed won and closed lost stages for the company
+        company = opportunity.company if hasattr(opportunity, "company") else None
+        closed_won_stage = None
+        closed_lost_stage = None
+        current_stage = (
+            opportunity.stage
+            if hasattr(opportunity, "stage") and opportunity.stage
+            else None
+        )
+        current_stage_id = current_stage.id if current_stage else None
+
+        if company:
+            closed_won_stage = OpportunityStage.objects.filter(
+                company=company, stage_type="won"
+            ).first()
+            closed_lost_stage = OpportunityStage.objects.filter(
+                company=company, stage_type="lost"
+            ).first()
+
+        context = {
+            "opportunity": opportunity,
+            "closed_won_stage": closed_won_stage,
+            "closed_lost_stage": closed_lost_stage,
+            "current_stage": current_stage,
+            "current_stage_id": current_stage_id,
+        }
+
+        return render(
+            request,
+            "opportunities/select_closed_stage.html",
+            context,
+        )
+
+    def post(self, request, *args, **kwargs):
+        """Handle the selection of closed won or closed lost."""
+        opportunity = get_object_or_404(Opportunity, pk=kwargs.get("pk"))
+        stage_id = request.POST.get("stage_id")
+
+        if not stage_id:
+            return HttpResponse(
+                "<script>alert('Please select a stage');</script>",
+                status=400,
+            )
+
+        try:
+            stage = OpportunityStage.objects.get(pk=stage_id)
+            # Verify it's a closed stage
+            if stage.stage_type not in ["won", "lost"]:
+                return HttpResponse(
+                    "<script>alert('Invalid stage selected');</script>",
+                    status=400,
+                )
+
+            # Update the opportunity stage
+            opportunity.stage = stage
+            opportunity.save()
+
+            return HttpResponse(
+                "<script>closeModal();$('#reloadButton').click();</script>"
+            )
+        except OpportunityStage.DoesNotExist:
+            return HttpResponse(
+                "<script>alert('Stage not found');</script>",
+                status=404,
+            )
