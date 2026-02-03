@@ -1,7 +1,9 @@
 """ Custom email backend supporting SMTP and Outlook via Microsoft Graph API."""
 
 import logging
+import re
 from datetime import datetime, timedelta
+from email.utils import formataddr
 
 import requests
 from django.conf import settings
@@ -17,6 +19,19 @@ from horilla_mail.models import HorillaMailConfiguration
 from horilla_utils.middlewares import _thread_local
 
 logger = logging.getLogger(__name__)
+
+
+def sanitize_display_name(name):
+    """
+    Sanitize display name by preserving all content.
+    The formataddr() function will automatically quote display names containing
+    special characters, preserving the content while ensuring valid email format.
+    This prevents XSS by proper quoting rather than removal.
+    """
+    if not name:
+        return ""
+    name = re.sub(r"\s+", " ", name).strip()
+    return name
 
 
 class HorillaDefaultMailBackend(EmailBackend):
@@ -118,17 +133,17 @@ class HorillaDefaultMailBackend(EmailBackend):
             ).first()
 
         if configuration:
-            display_email_name = (
-                f"{configuration.display_name} <{configuration.from_email}>"
-            )
+            display_name = sanitize_display_name(configuration.display_name)
+            display_email_name = formataddr((display_name, configuration.from_email))
             user_id = ""
             if request:
                 if (
                     configuration.use_dynamic_display_name
                     and request.user.is_authenticated
                 ):
-                    display_email_name = (
-                        f"{request.user.get_full_name()} <{request.user.email}>"
+                    user_full_name = sanitize_display_name(request.user.get_full_name())
+                    display_email_name = formataddr(
+                        (user_full_name, request.user.email)
                     )
                 if request.user.is_authenticated:
                     user_id = request.user.pk
@@ -175,10 +190,8 @@ class HorillaDefaultMailBackend(EmailBackend):
                 expires_at_val = token_data["expires_at"]
 
                 if isinstance(expires_at_val, (int, float)):
-                    # Handle Unix timestamp
                     expires_at = datetime.fromtimestamp(expires_at_val)
                 elif isinstance(expires_at_val, str):
-                    # Handle ISO 8601 string
                     expires_at = datetime.fromisoformat(expires_at_val)
                 else:
                     raise ValueError(
@@ -270,10 +283,27 @@ class HorillaDefaultMailBackend(EmailBackend):
         }
 
         if hasattr(self.configuration, "from_email") and self.configuration.from_email:
+            # Check if dynamic display name is being used
+            request = getattr(_thread_local, "request", None)
+            display_name = None
+            from_email = self.configuration.from_email
+
+            if (
+                request
+                and request.user.is_authenticated
+                and self.configuration.use_dynamic_display_name
+            ):
+                display_name = sanitize_display_name(request.user.get_full_name())
+                from_email = request.user.email
+            else:
+                display_name = sanitize_display_name(
+                    getattr(self.configuration, "display_name", None)
+                )
+
             outlook_message["message"]["from"] = {
                 "emailAddress": {
-                    "address": self.configuration.from_email,
-                    "name": getattr(self.configuration, "display_name", None),
+                    "address": from_email,
+                    "name": display_name,
                 }
             }
 
