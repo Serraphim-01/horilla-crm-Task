@@ -1,11 +1,7 @@
 {% load static i18n horilla_tags %}
 {% block settings %}
 <div class="flex justify-between items-center pl-3 pt-3">
-    <div id="messages-container" style="display: none;">
-        {% for message in messages %}
-            <div class="message" data-level="{{ message.tags }}" data-message="{{ message }}"></div>
-        {% endfor %}
-    </div>
+    {% include "messages.html" %}
     <button id="reloadButton"  hidden hx-get="{{ request.path }}?{{request.GET.urlencode}}" hx-target="#{{ view_id|safe }}" hx-trigger="click" hx-swap="outerHTML" hx-select="#{{ view_id|safe }}">click</button>
     <form hx-post="{% url 'horilla_core:recycle_bin_policy_view' %}" hx-swap="none" hx-on::after-request="$('#tab-recycle-view').click();">
         {% csrf_token %}

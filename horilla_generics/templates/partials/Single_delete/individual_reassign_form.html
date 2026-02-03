@@ -7,11 +7,7 @@
         width: 200px;
     }
 </style>
-<div id="messages-container" style="display: none;">
-    {% for message in messages %}
-        <div class="message" data-level="{{ message.tags }}" data-message="{{ message }}"></div>
-    {% endfor %}
-</div>
+{% include "messages.html" %}
 <div class="bg-white rounded-lg shadow p-6 min-w-[700px]">
     <div class="flex justify-between items-center mb-2">
         <h3 class="text-md font-semibold mb-2">{% trans 'Individual Reassign or Delete Dependencies' %}</h3>

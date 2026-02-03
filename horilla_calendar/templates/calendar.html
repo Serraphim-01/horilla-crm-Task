@@ -15,11 +15,7 @@
         <button id="reloadMainContent" style="display: none;" hx-get="{% url 'horilla_calendar:calendar_view' %}{% if request.GET.display_only %}?display_only={{ request.GET.display_only }}{% endif %}" hx-target="#mainContent" hx-select="#mainContent"  hx-swap="outerHTML">
             Reload Content
         </button>
-        <div id="messages-container" style="display: none;">
-            {% for message in messages %}
-                <div class="message" data-level="{{ message.tags }}" data-message="{{ message }}"></div>
-            {% endfor %}
-        </div>
+            {% include "messages.html" %}
         <div class="bg-white px-5 border-b border-b-dark-50 fixed w-fill-available z-10">
             <div class="flex flex-nowrap overflow-hidden overflow-x-auto items-center gap-2 justify-between">
                 <div class="flex flex-col">

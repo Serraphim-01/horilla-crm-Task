@@ -5,11 +5,7 @@
 {% has_perm user_meta.app_label|add:".view_"|add:user_meta.model_name as can_view_user %}
 {% if can_view_user %}
     <div id="users-view">
-        <div id="messages-container" style="display: none;">
-            {% for message in messages %}
-                <div class="message" data-level="{{ message.tags }}" data-message="{{ message }}"></div>
-            {% endfor %}
-        </div>
+        {% include "messages.html" %}
         <button id="reloadButton"  hidden hx-get="{{ request.path }}?{{request.GET.urlencode}}" hx-target="#users-view" hx-trigger="click" hx-swap="outerHTML" hx-select="#users-view">click</button>
         <div class="mb-4">
             <div class="flex flex-wrap gap-y-3 justify-between items-center mb-2">

@@ -6,11 +6,7 @@
 
 {% if can_view_company %}
   <div id="company-information">
-    <div id="messages-container" style="display: none;">
-      {% for message in messages %}
-          <div class="message" data-level="{{ message.tags }}" data-message="{{ message }}"></div>
-      {% endfor %}
-  </div>
+    {% include "messages.html" %}
     {% if not has_company %}
       <div class="flex justify-between items-center h-20">
       </div>

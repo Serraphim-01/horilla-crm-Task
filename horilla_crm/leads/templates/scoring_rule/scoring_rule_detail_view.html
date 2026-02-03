@@ -5,11 +5,7 @@
 {% has_perm "horilla_core.view_scoringrule" as can_view_scoringrule %}
 {% if can_view_scoringrule %}
   <div id="scoring-rule-view">
-    <div id="messages-container" style="display: none;">
-      {% for message in messages %}
-          <div class="message" data-level="{{ message.tags }}" data-message="{{ message }}"></div>
-      {% endfor %}
-    </div>
+    {% include "messages.html" %}
     <button id="reloadButton"  hidden hx-get="{{ request.path }}?{{request.GET.urlencode}}" hx-target="#scoring-rule-view" hx-trigger="click" hx-swap="outerHTML" hx-select="#scoring-rule-view">click</button>
     <div id="navBar" hx-get="{{ nav_url}}?{{request.GET.urlencode}}&obj={{current_obj.pk}}&model_name={{current_obj.module}}" hx-trigger="load">
     </div>

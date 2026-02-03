@@ -5,11 +5,7 @@
 {% block settings %}
 
 <div id="branches-view">
-    <div id="messages-container" style="display: none;">
-        {% for message in messages %}
-            <div class="message" data-level="{{ message.tags }}" data-message="{{ message }}"></div>
-        {% endfor %}
-    </div>
+    {% include "messages.html" %}
     <div id="navBar" hx-get="{{ nav_url}}?{{request.GET.urlencode}}" hx-trigger="load">
     </div>
     <div id="mainSession" class="pt-5" hx-get="{{ list_url }}?{{request.GET.urlencode}}" hx-trigger="load">

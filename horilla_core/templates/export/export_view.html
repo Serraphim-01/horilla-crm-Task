@@ -20,11 +20,7 @@
         </button>
 
         <form id="exportform" method="POST" action="{% url 'horilla_core:export_view' %}" hx-target="#export-view" hx-swap="innerHTML" enctype="multipart/form-data">
-            <div id="messages-container" class="hidden" >
-                {% for message in messages %}
-                    <div class="message {{ message.tags }}">{{ message }}</div>
-                {% endfor %}
-            </div>
+            {% include "messages.html" %}
             <button id="reloadButton" hidden hx-get="{{ request.path }}?{{request.GET.urlencode}}" hx-target="#exportform" hx-trigger="click" hx-swap="outerHTML" hx-select="#exportform">click</button>
             {% csrf_token %}
             <div class="flex flex-col-2 gap-4">

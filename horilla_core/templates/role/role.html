@@ -6,11 +6,7 @@
 {% if can_view_role %}
   <div id="role-container">
     <button id="reloadButton" hidden hx-get="{{ request.path }}?{{request.GET.urlencode}}" hx-target="#role-container" hx-swap="outerHTML" hx-select="#role-container">click</button>
-      <div id="messages-container" style="display: none;">
-        {% for message in messages %}
-            <div class="message" data-level="{{ message.tags }}" data-message="{{ message }}"></div>
-        {% endfor %}
-      </div>
+    {% include "messages.html" %}
     <div class="mb-2">
       <div class="flex justify-between items-center mb-2">
         <h3 class="text-md font-semibold">{% trans "Role Hierarchy" %}</h3>

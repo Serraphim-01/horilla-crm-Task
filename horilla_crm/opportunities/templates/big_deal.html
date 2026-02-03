@@ -1,11 +1,7 @@
 {% load static i18n horilla_tags%}
 {% block settings %}
 <div class="col-span-10" id="{{view_id|safe }}">
-    <div id="messages-container" style="display: none;">
-        {% for message in messages %}
-            <div class="message" data-level="{{ message.tags }}" data-message="{{ message }}"></div>
-        {% endfor %}
-    </div>
+    {% include "messages.html" %}
     <button id="reloadButton"  hidden hx-get="{{ request.path }}?{{request.GET.urlencode}}" hx-target="#{{ view_id|safe }}" hx-trigger="click" hx-swap="outerHTML" hx-select="#{{ view_id|safe }}">click</button>
     {% has_perm "opportunities.view_bigdealalert" as can_view_big_deal_alert %}
     {% if can_view_big_deal_alert %}

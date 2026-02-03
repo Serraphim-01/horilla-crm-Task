@@ -2,11 +2,7 @@
 {% load static i18n horilla_tags %}
 {% if has_company %}
   <div class="ps-3">
-    <div id="messages-container" style="display: none;">
-      {% for message in messages %}
-          <div class="message" data-level="{{ message.tags }}" data-message="{{ message }}"></div>
-      {% endfor %}
-    </div>
+    {% include "messages.html" %}
     <div class="flex gap-2 flex-wrap justify-between items-center h-auto sm:h-14 mb-5 sm:mb-2">
       <h3 class="text-md font-semibold">{% trans 'Fiscal Year' %}</h3>
       <div class="flex flex-wrap gap-2">

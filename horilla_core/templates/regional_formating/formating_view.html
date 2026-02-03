@@ -3,11 +3,7 @@
 
 {% block my_settings %}
 <div id="regional-formating-view">
-    <div id="messages-container" style="display: none;">
-        {% for message in messages %}
-            <div class="message" data-level="{{ message.tags }}" data-message="{{ message }}"></div>
-        {% endfor %}
-    </div>
+    {% include "messages.html" %}
     <button id="reloadButton" hidden hx-get="{{ request.path }}?{{request.GET.urlencode}}" hx-target="#regional-formating-view" hx-trigger="click" hx-swap="outerHTML" hx-select="#regional-formating-view">click</button>
     <form id="regional-formating-form">
         {% csrf_token %}

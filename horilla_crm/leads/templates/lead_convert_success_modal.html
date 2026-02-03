@@ -2,11 +2,7 @@
 {% load horilla_tags %}
 {% load i18n %}
 <div id="sec1" class="sec1">
-    <div id="messages-container" style="display: none;">
-        {% for message in messages %}
-            <div class="message" data-level="{{ message.tags }}" data-message="{{ message }}"></div>
-        {% endfor %}
-    </div>
+   {% include "messages.html" %}
     <div class="flex justify-end items-center p-5 pb-0">
       <button onclick="closeContentModal();$('#reloadButton').click();" class="text-gray-500 hover:text-red-500 text-xl cursor-pointer">
         <img src="{% static 'assets/icons/close.svg' %}" alt="{% trans 'Close' %}" />

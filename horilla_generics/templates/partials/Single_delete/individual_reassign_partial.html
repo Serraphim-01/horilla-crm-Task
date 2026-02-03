@@ -1,11 +1,7 @@
 {% load static %}
 {% load i18n %}
 
-<div id="messages-container" style="display: none;">
-    {% for message in messages %}
-        <div class="message" data-level="{{ message.tags }}" data-message="{{ message }}"></div>
-    {% endfor %}
-</div>
+{% include "messages.html" %}
 {% for record in records %}
     <div class="flex items-center gap-2 mb-2" data-record-id="{{ record.id }}">
         <span class="text-sm text-gray-600 flex-grow min-w-0 overflow-hidden text-ellipsis">{{ record }}</span>
