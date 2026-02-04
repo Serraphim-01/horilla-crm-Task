@@ -1,13 +1,13 @@
 {% load static %} {% load i18n %} {% load horilla_tags %}
 
 <div id="{{ view_id|safe }}-container" class="relative bg-white rounded-lg shadow-sm">
-    <form id="{{ view_id|safe }}" method="post" 
-          hx-post="{{ form_url }}?{{ request.GET.urlencode }}" 
+    <form id="{{ view_id|safe }}" method="post"
+          hx-post="{{ form_url }}?{{ request.GET.urlencode }}"
           hx-target="#{{ view_id|safe }}-container"
           hx-swap="outerHTML"
           enctype="multipart/form-data">
         {% csrf_token %}
-      
+
         <div class="p-5">
             <div class="flex justify-between items-center mb-2">
                 <h2 class="text-md font-semibold">{{ form_title|escape }}</h2>
@@ -15,7 +15,7 @@
                     <img src="{% static 'assets/icons/close.svg' %}" alt="{% trans 'Close' %}" />
                 </button>
             </div>
-            
+
             {% if form.non_field_errors %}
                 <div class="bg-red-50 text-red-500 px-4 py-3 rounded-lg text-sm mb-4">
                     {% for error in form.non_field_errors %}
@@ -23,19 +23,19 @@
                     {% endfor %}
                 </div>
             {% endif %}
-            
+
             <!-- Render all hidden fields -->
             {% for field in form %}
                 {% if field.is_hidden %}
                     {{ field }}
                 {% endif %}
             {% endfor %}
-            
+
             <!-- Hidden field for user_pk to include in HTMX requests -->
             {% if user_pk %}
                 <input type="hidden" name="user_pk" id="id_user_pk" value="{{ user_pk }}">
             {% endif %}
-            
+
             <!-- Display errors for hidden fields -->
             {% for field in form %}
                 {% if field.is_hidden and field.errors %}
@@ -53,7 +53,7 @@
                     </div>
                 {% endif %}
             {% endfor %}
-            
+
             <div class="overflow-hidden overflow-y-auto pe-2 custom-scroll">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
                     <!-- Company Field (first row, first column) -->
@@ -79,7 +79,7 @@
                             </div>
                         {% endif %}
                     {% endfor %}
-                    
+
                     <!-- Role Field (first row, second column) - Will be updated by HTMX -->
                     <div id="role_container" class="flex flex-col">
                         {% for field in form %}
@@ -103,7 +103,7 @@
                             {% endif %}
                         {% endfor %}
                     </div>
-                    
+
                     <!-- Company Related Fields Container (Department, Currency) - Second Row -->
                     <div id="company-related-fields" class="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                         {% for field in form %}
@@ -134,7 +134,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="flex justify-end p-5 pt-0 gap-2">
             <button type="submit" class="text-sm px-4 py-2 bg-primary-600 rounded-md hover:bg-primary-800 transition duration-300 text-[white]">
                 {% trans "Save" %}
@@ -153,10 +153,9 @@
             }, 100);
         }
     });
-    
+
     // Initialize Select2 on page load
     document.addEventListener('DOMContentLoaded', function() {
         $('#id_company, #id_role, #id_department, #id_currency').select2();
     });
 </script>
-
