@@ -97,7 +97,8 @@ def protected_media(request, path):
         "/initialize-database-role",
         "/initialize-database-company",
         "/initialize-company-form",
-        "/load-data" "/load-demo-data",
+        "/load-data",
+        "/load-demo-data",
     ]
     exempted_folders = ["assets/icons/"]
 
@@ -630,6 +631,27 @@ class SwitchCompanyView(LoginRequiredMixin, View):
 
 
 @method_decorator(htmx_required, name="dispatch")
+class ToggleAllCompaniesView(LoginRequiredMixin, View):
+    """
+    View to toggle "show all companies" mode globally via session.
+    """
+
+    def post(self, request):
+        """
+        Toggle the all_companies setting in session.
+        """
+        current_value = request.session.get("show_all_companies", False)
+        request.session["show_all_companies"] = not current_value
+        request.session.save()
+
+        # Return HX-Redirect to refresh the page
+        referer = request.META.get("HTTP_REFERER", "/")
+        response = HttpResponse(status=200)
+        response["HX-Redirect"] = referer
+        return response
+
+
+@method_decorator(htmx_required, name="dispatch")
 @method_decorator(
     permission_required_or_denied("horilla_core.view_company"), name="dispatch"
 )
@@ -797,7 +819,8 @@ class HolidayDeleteView(LoginRequiredMixin, HorillaSingleDeleteView):
         """
 
         return HttpResponse(
-            "<script>$('#reloadButton').click();closeDeleteModeModal();</script>"
+            "<script>$('#reloadButton').click();closeDeleteModeModal();closeDetailModal();</script>"
+            # "<script>$('#reloadButton').click();closeDeleteModeModal();$('#tab-holidays-view').click();</script>"
         )
 
 
@@ -811,8 +834,10 @@ class HolidayFormView(LoginRequiredMixin, HorillaSingleFormView):
     form_class = HolidayForm
     view_id = "holiday-form-view"
     form_title = "Holiday Form"
-    # hidden_fields = ["company"]
     full_width_fields = ["name"]
+    return_response = HttpResponse(
+        "<script>closeModal();$('#detailViewReloadButton').click();$('#tab-holidays-view').click();</script>"
+    )
 
     @cached_property
     def form_url(self):
@@ -868,13 +893,6 @@ class HolidayFormView(LoginRequiredMixin, HorillaSingleFormView):
 
         return initial
 
-    def form_invalid(self, form):
-        """
-        Handle invalid form submission.
-        """
-        response = super().form_invalid(form)
-        return response
-
 
 @method_decorator(htmx_required, name="dispatch")
 @method_decorator(
@@ -923,11 +941,11 @@ class HolidayDetailView(LoginRequiredMixin, HorillaModalDetailView):
             "attrs": """
                     class="w-24 justify-center px-4 py-2 bg-[white] rounded-md text-xs flex items-center gap-2 border border-primary-500 hover:border-primary-600 transition duration-300 disabled:cursor-not-allowed text-primary-600"
                     hx-post="{get_delete_url}"
-                    hx-target="#deleteModeBox"
+                    hx-target="#modalBox"
                     hx-swap="innerHTML"
-                    hx-trigger="confirmed"
-                    hx-on:click="hxConfirm(this,'Are you sure you want to delete this holiday?')"
-                    hx-on::after-request="closeDetailModal();"
+                    hx-trigger="click"
+                    hx-vals='{{"check_dependencies": "false"}}'
+                    onclick="openModal()"
                 """,
         },
     ]
@@ -1121,6 +1139,9 @@ class BusinessHourFormView(LoginRequiredMixin, HorillaSingleFormView):
     view_id = "business-hour-form-view"
     form_title = "Business Hour Form"
     hidden_fields = ["company"]
+    return_response = HttpResponse(
+        "<script>closeModal();$('#reloadButton').click();$('#detailViewReloadButton').click();</script>"
+    )
 
     @cached_property
     def form_url(self):
@@ -1177,7 +1198,7 @@ class BusinessHourDeleteView(LoginRequiredMixin, HorillaSingleDeleteView):
         Get the response after deleting a business hour.
         """
         return HttpResponse(
-            "<script>$('#reloadButton').click();closeDeleteModeModal();</script>"
+            "<script>$('#reloadButton').click();closeDeleteModeModal();closeDetailModal();</script>"
         )
 
 
@@ -1229,12 +1250,12 @@ class BusinessHourDetailView(LoginRequiredMixin, HorillaModalDetailView):
             "attrs": """
                     class="w-24 justify-center px-4 py-2 bg-[white] rounded-md text-xs flex items-center gap-2 border border-primary-500 hover:border-primary-600 transition duration-300 disabled:cursor-not-allowed text-primary-600"
                     hx-post="{get_delete_url}"
-                    hx-target="#deleteModeBox"
+                    hx-target="#modalBox"
                     hx-swap="innerHTML"
-                    hx-trigger="confirmed"
-                    hx-on:click="hxConfirm(this,'Are you sure you want to delete this holiday?')"
-                    hx-on::after-request="closeDetailModal();"
-                    """,
+                    hx-trigger="click"
+                    hx-vals='{{"check_dependencies": "false"}}'
+                    onclick="openModal()"
+                """,
         },
     ]
 
@@ -1279,11 +1300,45 @@ class RolesView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        roles = Role.objects.all()
+        show_all_companies = self.request.session.get("show_all_companies", False)
 
-        def build_role_tree(parent_role=None):
-            """Recursively build role hierarchy"""
-            children = roles.filter(parent_role=parent_role)
+        def build_role_tree(roles_queryset, parent_role=None, company=None):
+            """Recursively build role hierarchy for a specific company"""
+            # Filter children by parent_role and ensure they belong to the same company
+            if parent_role is None:
+                # Root level: get roles with no parent_role, filtered by company
+                if company is not None:
+                    children = roles_queryset.filter(
+                        parent_role__isnull=True, company=company
+                    )
+                else:
+                    children = roles_queryset.filter(
+                        parent_role__isnull=True, company__isnull=True
+                    )
+            else:
+                # Child level: get roles with this parent_role
+                # Ensure parent_role belongs to the same company to prevent cross-company connections
+                if company is not None:
+                    # Only include if parent_role belongs to the same company
+                    if parent_role.company == company:
+                        children = roles_queryset.filter(
+                            parent_role=parent_role, company=company
+                        )
+                    else:
+                        children = (
+                            roles_queryset.none()
+                        )  # Don't connect across companies
+                else:
+                    # For roles without company, ensure parent_role also has no company
+                    if parent_role.company is None:
+                        children = roles_queryset.filter(
+                            parent_role=parent_role, company__isnull=True
+                        )
+                    else:
+                        children = (
+                            roles_queryset.none()
+                        )  # Don't connect across company boundaries
+
             role_tree = []
 
             for role in children:
@@ -1293,16 +1348,76 @@ class RolesView(LoginRequiredMixin, TemplateView):
                     "name": role.role_name,
                     "description": getattr(role, "description", ""),
                     "user_count": user_count,
-                    "children": build_role_tree(role),
+                    "children": build_role_tree(roles_queryset, role, company),
                 }
                 role_tree.append(role_dict)
 
             return role_tree
 
-        roles_data = build_role_tree()
+        if show_all_companies:
+            # Group roles by company when "all company" is activated
+            all_roles = Role.all_objects.all()
+            companies_with_roles = {}
 
-        context["roles_data"] = roles_data
-        context["roles_count"] = roles.count()
+            # Group roles by company
+            for role in all_roles:
+                company = role.company
+                if company:
+                    if company not in companies_with_roles:
+                        companies_with_roles[company] = []
+                    companies_with_roles[company].append(role)
+
+            # Build company-grouped structure
+            companies_data = []
+            for company, company_roles in companies_with_roles.items():
+                # Build role tree for this company's roles only
+                company_roles_queryset = Role.all_objects.filter(company=company)
+                roles_tree = build_role_tree(company_roles_queryset, company=company)
+
+                companies_data.append(
+                    {
+                        "company": company,
+                        "company_id": company.id,
+                        "company_name": company.name,
+                        "roles": roles_tree,
+                        "roles_count": len(company_roles),
+                    }
+                )
+
+            # Also include roles without company
+            roles_without_company = all_roles.filter(company__isnull=True)
+            if roles_without_company.exists():
+                roles_without_company_queryset = Role.all_objects.filter(
+                    company__isnull=True
+                )
+                roles_tree = build_role_tree(
+                    roles_without_company_queryset, company=None
+                )
+                companies_data.append(
+                    {
+                        "company": None,
+                        "company_id": None,
+                        "company_name": "No Company",
+                        "roles": roles_tree,
+                        "roles_count": roles_without_company.count(),
+                    }
+                )
+
+            context["companies_data"] = companies_data
+            context["show_all_companies"] = True
+            context["roles_count"] = all_roles.count()
+        else:
+            # Original behavior: filter by active company
+            roles = Role.objects.all()
+            # Get the company from the filtered queryset (should be active company)
+            company = getattr(self.request, "active_company", None)
+            if not company and hasattr(self.request.user, "company"):
+                company = self.request.user.company
+            roles_data = build_role_tree(roles, company=company)
+            context["roles_data"] = roles_data
+            context["show_all_companies"] = False
+            context["roles_count"] = roles.count()
+
         return context
 
 

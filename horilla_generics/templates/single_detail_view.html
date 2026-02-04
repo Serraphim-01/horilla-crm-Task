@@ -2,8 +2,10 @@
 {% load static %}
 {% load i18n %}
 
+<button id="detailViewReloadButton"  hidden hx-get="{{ request.path }}?{{request.GET.urlencode}}" hx-target="#detailViewContainer" hx-swap="outerHTML" hx-select="#detailViewContainer">click</button>
 <div class="modal-box mx-5 bg-white w-full max-w-md md:min-w-[700px] rounded-lg shadow-card p-0 transition-all duration-300 opacity-100 scale-100">
     <div class="p-5 pl-2" id="detailViewContainer">
+
         <!-- Modal Header -->
         <div class="flex justify-between items-center mb-2">
             <h2 class="text-md font-semibold" id="genericModalLabel">{{ title }}</h2>
