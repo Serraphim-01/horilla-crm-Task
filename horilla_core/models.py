@@ -377,6 +377,9 @@ class CompanyFilteredManager(models.Manager):
             request = getattr(_thread_local, "request", None)
             if request is None:
                 return queryset
+            if request.session.get("show_all_companies", False):
+                return queryset
+
             company = getattr(request, "active_company", None)
             if company:
                 queryset = queryset.filter(company=company)
@@ -3274,9 +3277,8 @@ class HorillaAttachment(HorillaCoreModel):
         blank=True,
         help_text=_("Optional file attached to this record."),
     )
-    description = models.CharField(
+    description = models.TextField(
         _("Notes"),
-        max_length=255,
         blank=True,
         null=True,
         help_text=_("Optional description or notes about the attachment."),

@@ -5,15 +5,9 @@
     if (typeof DOMPurify === 'undefined' || typeof $ === 'undefined') return;
 
     var purifyConfig = {
-        ALLOWED_TAGS: ['p', 'br', 'b', 'i', 'u', 'strong', 'em', 'ul', 'ol', 'li',
-            'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre',
-            'a', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
-            'span', 'div', 'hr', 'sub', 'sup', 'strike', 's', 'font', 'video'],
-        ALLOWED_ATTR: ['href', 'title', 'target', 'src', 'alt', 'width', 'height',
-            'style', 'border', 'cellpadding', 'cellspacing', 'colspan', 'rowspan',
-            'color', 'face', 'size', 'controls', 'class'],
-        ALLOW_DATA_ATTR: false,
-        FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'applet', 'link', 'form', 'input', 'button', 'svg', 'math'],
+        USE_PROFILES: { html: true },
+        ALLOW_DATA_ATTR: true,
+        FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'applet', 'link', 'svg', 'math'],
         FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur',
             'onmouseout', 'onkeydown', 'onkeyup', 'onkeypress', 'onchange', 'onsubmit',
             'onmousedown', 'onmouseup', 'ondblclick', 'oncontextmenu', 'ondrag', 'ondrop']
@@ -454,12 +448,20 @@ function initSidebar() {
     window.onresize = adjustSidebar;
 }
 
-// Section visibility
-function showDiv(idToShow) {
-    const divs = document.querySelectorAll('div[id^="sec"]');
-    divs.forEach((div) => {
-        div.style.display = div.id === idToShow ? "block" : "none";
-    });
+function togglePassword() {
+    const passwordInput = document.getElementById('passwordInput');
+    const eyeIcon = document.getElementById('eyeIcon');
+    const eyeHideIcon = document.getElementById('eyeHideIcon');
+
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        eyeIcon.classList.add('hidden');
+        eyeHideIcon.classList.remove('hidden');
+    } else {
+        passwordInput.type = 'password';
+        eyeIcon.classList.remove('hidden');
+        eyeHideIcon.classList.add('hidden');
+    }
 }
 
 // Table Management
@@ -1062,6 +1064,12 @@ function initializeSelect2Pagination() {
                             requestData.parent_model = parentModel;
                         }
 
+                        // Add object_id if available (for edit forms to use object's company)
+                        const objectId = $this.data('object-id');
+                        if (objectId) {
+                            requestData.object_id = objectId;
+                        }
+
                         return requestData;
                     },
                     processResults: function (data, params) {
@@ -1389,7 +1397,6 @@ $(window).on('load', function () {
     safeInitializeSelect2();
 });
 
-window.onload = () => showDiv("sec1");
 
 // Event Delegation
 $(document).on("change", "input[data-role='row-select']", function () {

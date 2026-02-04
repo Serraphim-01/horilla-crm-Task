@@ -9,6 +9,8 @@ import logging
 from datetime import date, datetime
 from decimal import Decimal
 
+import bleach
+
 # Django imports
 from django import forms
 from django.apps import apps
@@ -3031,3 +3033,14 @@ class HorillaAttachmentForm(forms.ModelForm):
                 }
             ),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # If editing (instance exists), escape the description content
+        if self.instance and self.instance.pk and self.instance.description:
+            # Replace HTML entities with double-escaped versions
+            escaped_description = self.instance.description.replace(
+                "&lt;", "&amp;lt;"
+            ).replace("&gt;", "&amp;gt;")
+            self.initial["description"] = escaped_description
