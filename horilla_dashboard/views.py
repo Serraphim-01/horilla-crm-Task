@@ -14,7 +14,7 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, ForeignKey, Q
 from django.http import HttpResponse, JsonResponse, QueryDict
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import render
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.utils.functional import cached_property
@@ -24,6 +24,7 @@ from django.views.generic import TemplateView, View
 # First-party / Horilla imports
 from horilla.exceptions import HorillaHttp404
 from horilla.utils.choices import DISPLAYABLE_FIELD_TYPES
+from horilla.utils.shortcuts import get_object_or_404
 from horilla_core.decorators import (
     htmx_required,
     permission_required,
@@ -1063,6 +1064,7 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
             kpi = self.get_kpi_data(component, self.request)
             if kpi:
                 kpi_data.append(kpi)
+            print(kpi_data, 111111111111111111111111111)
 
         # Process chart components
         chart_data = []
@@ -1082,11 +1084,17 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
         current_referer = self.request.META.get("HTTP_REFERER")
         hx_current_url = self.request.headers.get("HX-Current-URL")
         stored_referer = self.request.session.get(session_referer_key)
+
         if hx_current_url:
-            previous_url = hx_current_url
             hx_path = urlparse(hx_current_url).path
             if hx_path != self.request.path:
                 self.request.session[session_referer_key] = hx_current_url
+                previous_url = hx_current_url
+            else:
+                previous_url = stored_referer or reverse_lazy(
+                    "horilla_dashboard:dashboard_list_view"
+                )
+
         elif stored_referer:
             previous_url = stored_referer
         elif current_referer and self.request.get_host() in current_referer:
@@ -1098,6 +1106,7 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
                 previous_url = reverse_lazy("horilla_dashboard:dashboard_list_view")
         else:
             previous_url = reverse_lazy("horilla_dashboard:dashboard_list_view")
+
         context["previous_url"] = previous_url
 
         context.update(
@@ -1455,6 +1464,16 @@ class DashboardComponentFormView(LoginRequiredMixin, HorillaSingleFormView):
                 return super().get(request, *args, **kwargs)
 
         return render(request, "error/403.html")
+
+    def form_valid(self, form):
+        """Handle form submission and ensure proper file path"""
+        instance = form.save(commit=False)
+
+        if "icon" in self.request.FILES:
+            icon_file = self.request.FILES["icon"]
+            instance.icon = icon_file
+
+        return super().form_valid(form)
 
 
 @method_decorator(htmx_required, name="dispatch")
@@ -2091,6 +2110,7 @@ class DashboardComponentChartView(View):
             metric_label = (
                 f"{component.metric_type.title() if component.metric_type else 'Count'}"
             )
+            print(component.icon.url, 0000000000000000000000000000000)
 
             return {
                 "value": float(value),
@@ -2846,9 +2866,9 @@ class DashboardCreateFormView(LoginRequiredMixin, HorillaSingleFormView):
         initial.update(self.request.GET.dict())
         return initial
 
-    def form_valid(self, form):
-        super().form_valid(form)
-        return HttpResponse(headers={"HX-Refresh": "true"})
+    # def form_valid(self, form):
+    #     super().form_valid(form)
+    #     return HttpResponse(headers={"HX-Refresh": "true"})
 
 
 @method_decorator(htmx_required, name="dispatch")
