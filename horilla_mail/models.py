@@ -1,7 +1,6 @@
 """Models for Horilla Mail App"""
 
 import mimetypes
-import re
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -15,7 +14,7 @@ from horilla_core.models import HorillaContentType, HorillaCoreModel, upload_pat
 from horilla_mail.encryption_utils import decrypt_password
 from horilla_mail.fields import EncryptedCharField
 from horilla_mail.methods import limit_content_types
-from horilla_utils.methods import render_template
+from horilla_utils.methods import has_xss, render_template
 from horilla_utils.middlewares import _thread_local
 
 
@@ -208,7 +207,9 @@ class HorillaMail(HorillaCoreModel):
     )
 
     to = models.TextField(
-        help_text=_("Comma separated recipient email addresses"), verbose_name=_("To")
+        help_text=_("Comma separated recipient email addresses"),
+        verbose_name=_("To"),
+        blank=True,  # Allow blank for drafts, validate when sending
     )
     cc = models.TextField(blank=True, null=True, verbose_name=_("Cc"))
     bcc = models.TextField(blank=True, null=True, verbose_name=_("Bcc"))
@@ -265,29 +266,53 @@ class HorillaMail(HorillaCoreModel):
         django_engine = engines["django"]
         return django_engine.from_string(self.body or "").render(context)
 
-    @staticmethod
-    def has_xss(value: str) -> bool:
-        """Detect common XSS attempts (scripts, event handlers, js URLs, active content)."""
-        if not isinstance(value, str):
-            return False
+    def clean(self):
+        """Validate model fields for XSS at model level (works for admin, forms, and API)."""
+        errors = {}
 
-        xss_patterns = [
-            # <script> ... </script> with any attributes
-            r"<\s*script[^>]*>.*?<\s*/\s*script\s*>",
-            # Opening <script> tag (for incomplete scripts)
-            r"<\s*script[^>]*>",
-            r"javascript\s*:",  # javascript: pseudo-protocol
-            r"javascript\s*:",  # javascript: pseudo-protocol
-            r"on\w+\s*=",  # inline event handlers (onclick, onload, etc.)
-            # dangerous active content
-            r"<\s*(embed|object|iframe|svg|math|link|meta).*?>",
-            # JS API abuse
-            r"on\w+\s*=\s*['\"]?\s*(eval|setTimeout|setInterval|new\s+Function|XMLHttpRequest|fetch|\$\s*\()[^>]*",
-        ]
+        if self.subject and has_xss(self.subject):
+            errors["subject"] = _(
+                "Subject contains potentially dangerous content (XSS detected). "
+                "Please remove any scripts or malicious code."
+            )
 
-        combined = re.compile("|".join(xss_patterns), re.IGNORECASE | re.DOTALL)
-        result = bool(combined.search(value))
-        return result
+        if self.body and has_xss(self.body):
+            errors["body"] = _(
+                "Body contains potentially dangerous content (XSS detected). "
+                "Please remove any scripts or malicious code."
+            )
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        """Override save to ensure clean() is called for validation."""
+        # Set updated_by before validation (parent save will also set it, but we need it for validation)
+        from horilla_utils.middlewares import _thread_local
+
+        request = getattr(_thread_local, "request", None)
+        if request:
+            user = getattr(request, "user", None)
+            if user and not user.is_anonymous:
+                if not self.pk:
+                    # New object - set both created_by and updated_by
+                    if not self.created_by:
+                        self.created_by = user
+                    self.updated_by = user
+                else:
+                    # Existing object - only update updated_by
+                    self.updated_by = user
+
+        # Only validate if required fields are set (to avoid validation errors for drafts)
+        # For drafts, to field might be empty, so we skip full_clean for drafts
+        if self.mail_status != "draft" or self.to:
+            # Validate before saving (only if not a draft or if to is set)
+            self.full_clean()
+        else:
+            # For drafts with empty to, just call clean() for XSS validation
+            self.clean()
+
+        return super().save(*args, **kwargs)
 
     def get_edit_url(self):
         """
@@ -407,3 +432,27 @@ class HorillaMailTemplate(HorillaCoreModel):
         if self.content_type:
             return self.content_type.model_class()._meta.verbose_name.title()
         return "General"
+
+    def clean(self):
+        """Validate model fields for XSS at model level (works for admin, forms, and API)."""
+        errors = {}
+
+        if self.subject and has_xss(self.subject):
+            errors["subject"] = _(
+                "Subject contains potentially dangerous content (XSS detected). "
+                "Please remove any scripts or malicious code."
+            )
+
+        if self.body and has_xss(self.body):
+            errors["body"] = _(
+                "Body contains potentially dangerous content (XSS detected). "
+                "Please remove any scripts or malicious code."
+            )
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        """Override save to ensure clean() is called for validation."""
+        self.full_clean()
+        return super().save(*args, **kwargs)
