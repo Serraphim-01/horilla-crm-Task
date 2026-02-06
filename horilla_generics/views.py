@@ -8330,16 +8330,18 @@ class HorillaSingleFormView(FormView):
 
                         # Build human-readable message
                         if len(unique_fields) == 1:
+                            field_label = (
+                                form.fields[primary_field].label or primary_field
+                            )
                             user_message = _(
                                 "A %(model)s with this %(field)s already exists."
                             ) % {
                                 "model": self.model._meta.verbose_name,
-                                "field": form.fields[primary_field].label
-                                or primary_field,
+                                "field": str(field_label),
                             }
                         else:
                             field_labels = [
-                                form.fields[f].label or f for f in unique_fields
+                                str(form.fields[f].label or f) for f in unique_fields
                             ]
                             user_message = _(
                                 "A %(model)s with this combination of %(fields)s already exists."
