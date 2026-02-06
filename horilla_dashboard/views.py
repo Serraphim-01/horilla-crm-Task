@@ -2105,9 +2105,33 @@ class DashboardComponentChartView(View):
                 f"{component.metric_type.title() if component.metric_type else 'Count'}"
             )
 
+            base_url = section_info["url"]
+            if conditions.exists():
+                query_params = [
+                    ("section", section_info["section"]),
+                    ("apply_filter", "true"),
+                ]
+
+                for condition in conditions:
+
+                    operator = (
+                        "exact"
+                        if condition.operator == "equals"
+                        else condition.operator
+                    )
+
+                    query_params.append(("field", condition.field))
+                    query_params.append(("operator", operator))
+                    query_params.append(("value", condition.value))
+
+                query = urlencode(query_params, doseq=True)
+                filtered_url = f"{base_url}?{query}"
+            else:
+                filtered_url = f"{base_url}?section={section_info['section']}"
+
             return {
                 "value": float(value),
-                "url": section_info["url"],
+                "url": filtered_url,
                 "section": section_info["section"],
                 "label": f"{metric_label} of {module_name.title()}",
             }
