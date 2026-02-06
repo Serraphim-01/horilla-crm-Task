@@ -32,6 +32,10 @@ FEATURE_REGISTERING_APP = {}
 # Format: {feature_name: [model_class, ...]}
 FEATURE_INCLUDE_MODELS = {}
 
+# Track feature-specific exclude models (for excluding from auto-registration)
+# Format: {feature_name: [model_class, ...]}
+FEATURE_EXCLUDE_MODELS = {}
+
 # Track whether features should auto-register all=True models
 # Format: {feature_name: bool}
 FEATURE_AUTO_REGISTER_ALL = {}
@@ -52,6 +56,7 @@ def register_feature(
     exclude_app_label=None,
     auto_register_all=None,  # None means auto-detect based on include_models
     include_models=None,
+    exclude_models=None,
 ):
     """
     Register a new feature dynamically from any app.
@@ -64,19 +69,23 @@ def register_feature(
         auto_register_all: If True, automatically register all models with all=True.
                           If False, only register models specified in include_models.
                           If None (default), automatically set to False when include_models is provided,
-                          otherwise defaults to True for backward compatibility.
+                          otherwise defaults to True (auto-register all all=True models).
         include_models: List of specific models to register. Can be:
                        - List of tuples: [("app_label", "model_name"), ...]
                        - List of model classes: [ModelClass, ...]
                        - List of strings: ["app_label.model_name", ...]
                        If provided, only these models will be registered (overrides auto_register_all).
+        exclude_models: List of specific models to exclude from auto-registration when auto_register_all=True.
+                       Can be:
+                       - List of tuples: [("app_label", "model_name"), ...]
+                       - List of model classes: [ModelClass, ...]
+                       - List of strings: ["app_label.model_name", ...]
+                       - Single tuple, model class, or string (will be converted to list)
+                       Only works when auto_register_all=True.
 
     Example:
         # Basic registration (auto-registers all all=True models)
         register_feature("workflow")
-
-        # Exclude app from auto-registration
-        register_feature("duplicate_data", exclude_app_label="horilla_duplicates")
 
         # Selective registration - only specific models
         # auto_register_all is automatically False when include_models is provided
@@ -85,10 +94,19 @@ def register_feature(
             "duplicate_models",
             exclude_app_label="horilla_duplicates",
             include_models=[
-                ("accounts", "Account"),
-                ("contacts", "Contact"),
-                ("leads", "Lead"),
+                ("horilla_core","User")
             ]
+        )
+
+        # Auto-register all=True models but exclude specific ones
+        register_feature(
+            "notification_template",
+            "notification_template_models",
+            auto_register_all=True,
+            exclude_models=[
+                ("horilla_core", "User"),  # Exclude this model
+            ],
+
         )
 
     Returns:
@@ -102,7 +120,7 @@ def register_feature(
     # Auto-determine auto_register_all if not explicitly set
     if auto_register_all is None:
         # If include_models is provided, default to selective registration (False)
-        # Otherwise, default to True for backward compatibility
+        # If include_models is NOT provided, default to True (auto-register all all=True models)
         auto_register_all = False if include_models else True
 
     # Auto-detect app_label from calling module if not provided
@@ -132,7 +150,7 @@ def register_feature(
     # Auto-determine auto_register_all if not explicitly set
     if auto_register_all is None:
         # If include_models is provided, default to selective registration (False)
-        # Otherwise, default to True for backward compatibility
+        # If include_models is NOT provided, default to True (auto-register all all=True models)
         auto_register_all = False if include_models else True
 
     if feature_name in FEATURE_CONFIG:
@@ -204,6 +222,46 @@ def register_feature(
                     continue
                 if model_class not in FEATURE_REGISTRY[registry_key]:
                     FEATURE_REGISTRY[registry_key].append(model_class)
+
+        # Update exclude models if provided
+        if exclude_models:
+            # Process exclude_models (same logic as below)
+            excluded_model_classes = []
+            if not isinstance(exclude_models, list):
+                exclude_models = [exclude_models]
+
+            for model_spec in exclude_models:
+                model_class = None
+                if isinstance(model_spec, tuple) and len(model_spec) == 2:
+                    app_label, model_name = model_spec
+                    try:
+                        model_class = apps.get_model(app_label, model_name)
+                    except LookupError:
+                        continue
+                elif isinstance(model_spec, str) and "." in model_spec:
+                    try:
+                        app_label, model_name = model_spec.split(".", 1)
+                        model_class = apps.get_model(app_label, model_name)
+                    except (ValueError, LookupError):
+                        continue
+                elif hasattr(model_spec, "_meta"):
+                    model_class = model_spec
+
+                if model_class and model_class not in excluded_model_classes:
+                    excluded_model_classes.append(model_class)
+
+            FEATURE_EXCLUDE_MODELS[feature_name] = excluded_model_classes
+
+            # Remove excluded models from registry
+            excluded_app = FEATURE_REGISTERING_APP.get(feature_name)
+            for model_class in excluded_model_classes:
+                if model_class in FEATURE_REGISTRY[registry_key]:
+                    FEATURE_REGISTRY[registry_key].remove(model_class)
+                    logger.debug(
+                        "Removed excluded model %s from feature '%s' registry",
+                        model_class,
+                        feature_name,
+                    )
         return False
 
     FEATURE_CONFIG[feature_name] = registry_key
@@ -270,6 +328,67 @@ def register_feature(
     else:
         FEATURE_INCLUDE_MODELS[feature_name] = []
 
+    # Process exclude_models if provided
+    excluded_model_classes = []
+    if exclude_models:
+        # Handle single model (not a list) - convert to list
+        if not isinstance(exclude_models, list):
+            exclude_models = [exclude_models]
+
+        for model_spec in exclude_models:
+            model_class = None
+            if isinstance(model_spec, tuple) and len(model_spec) == 2:
+                # Tuple format: ("app_label", "model_name")
+                app_label, model_name = model_spec
+                try:
+                    model_class = apps.get_model(app_label, model_name)
+                except LookupError as e:
+                    logger.warning(
+                        "Could not find model '%s.%s' to exclude from feature '%s': %s",
+                        app_label,
+                        model_name,
+                        feature_name,
+                        e,
+                    )
+                    continue
+            elif isinstance(model_spec, str):
+                # String format: "app_label.model_name"
+                if "." in model_spec:
+                    try:
+                        app_label, model_name = model_spec.split(".", 1)
+                        model_class = apps.get_model(app_label, model_name)
+                    except (ValueError, LookupError) as e:
+                        logger.warning(
+                            "Could not parse or find model '%s' to exclude from feature '%s': %s",
+                            model_spec,
+                            feature_name,
+                            e,
+                        )
+                        continue
+            elif hasattr(model_spec, "_meta"):
+                # Model class directly
+                model_class = model_spec
+            else:
+                logger.warning(
+                    "Invalid model specification '%s' to exclude from feature '%s'. "
+                    "Expected tuple, string, or model class.",
+                    model_spec,
+                    feature_name,
+                )
+                continue
+
+            if model_class and model_class not in excluded_model_classes:
+                excluded_model_classes.append(model_class)
+
+        FEATURE_EXCLUDE_MODELS[feature_name] = excluded_model_classes
+        logger.info(
+            "Registered %s models to exclude from feature '%s'",
+            len(excluded_model_classes),
+            feature_name,
+        )
+    else:
+        FEATURE_EXCLUDE_MODELS[feature_name] = []
+
     # Log registration
     log_parts = [f"Registered new feature '{feature_name}' -> '{registry_key}'"]
     if exclude_app_label:
@@ -301,6 +420,17 @@ def register_feature(
                 feature_name,
             )
 
+    # Remove excluded models from registry (if they were already registered)
+    excluded_models = FEATURE_EXCLUDE_MODELS.get(feature_name, [])
+    for model_class in excluded_models:
+        if model_class in FEATURE_REGISTRY[registry_key]:
+            FEATURE_REGISTRY[registry_key].remove(model_class)
+            logger.debug(
+                "Removed excluded model %s from feature '%s' registry",
+                model_class,
+                feature_name,
+            )
+
     # If selective registration is enabled, clean up any models that shouldn't be there
     if not auto_register_all:
         included_models = set(FEATURE_INCLUDE_MODELS.get(feature_name, []))
@@ -324,6 +454,9 @@ def register_feature(
 
     # Then, auto-register all=True models if enabled
     if auto_register_all:
+        # Get excluded models for this feature
+        excluded_models = FEATURE_EXCLUDE_MODELS.get(feature_name, [])
+
         for model_class, excluded_features in ALL_FEATURES_MODELS.items():
             # Skip if model belongs to the excluded app
             if excluded_app and model_class._meta.app_label == excluded_app:
@@ -337,6 +470,23 @@ def register_feature(
 
             # Skip if already registered via include_models
             if model_class in FEATURE_INCLUDE_MODELS.get(feature_name, []):
+                continue
+
+            # Skip if model is in the exclude_models list
+            if model_class in excluded_models:
+                logger.debug(
+                    "Skipping auto-registration of model %s for feature '%s' (model is in exclude_models)",
+                    model_class,
+                    feature_name,
+                )
+                # Remove from registry if it was already registered
+                if model_class in FEATURE_REGISTRY[registry_key]:
+                    FEATURE_REGISTRY[registry_key].remove(model_class)
+                    logger.debug(
+                        "Removed excluded model %s from feature '%s' registry",
+                        model_class,
+                        feature_name,
+                    )
                 continue
 
             # Skip if feature is in the model's exclude list
