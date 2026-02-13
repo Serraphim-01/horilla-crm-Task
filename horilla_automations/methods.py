@@ -555,9 +555,10 @@ def send_automation_notification(automation, instance, recipients, context, user
 
         # Use notification_template if available
         if notification_template:
-            message_template = notification_template.message or ""
+            message_template = (notification_template.message or "").strip()
             notification_message = ""
             if message_template:
+                message_template = "{% load horilla_tags %}\n" + message_template
                 notification_message = django_engine.from_string(
                     message_template
                 ).render(context)
@@ -568,15 +569,17 @@ def send_automation_notification(automation, instance, recipients, context, user
             )
         else:
             # Fallback to mail_template for backward compatibility
-            subject_template = automation.mail_template.subject or ""
-            body_template = automation.mail_template.body or ""
+            subject_template = (automation.mail_template.subject or "").strip()
+            body_template = (automation.mail_template.body or "").strip()
 
             notification_message = ""
             if subject_template:
+                subject_template = "{% load horilla_tags %}\n" + subject_template
                 subject = django_engine.from_string(subject_template).render(context)
                 notification_message = subject
 
             if body_template:
+                body_template = "{% load horilla_tags %}\n" + body_template
                 body = django_engine.from_string(body_template).render(context)
                 if notification_message:
                     notification_message += f"\n{body}"
@@ -614,6 +617,7 @@ def send_automation_notification(automation, instance, recipients, context, user
                             message=notification_message,
                             sender=user,
                             url=instance_url,
+                            instance=instance,
                             read=False,
                         )
                         if notification:
