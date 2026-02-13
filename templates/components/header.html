@@ -356,7 +356,7 @@
 
             newDropdownItem.innerHTML = `
             <div class="flex items-center justify-between">
-                <span>${escapeHtml(data.message)}</span>
+                <span>${data.message}</span>
                 <button
                     hx-post="/notifications/notifications-read/${data.id}/"
                     hx-target="#notif-${data.id}"
@@ -436,7 +436,7 @@
             <div class="flex items-start gap-2">
             <div class="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
                 <div class="flex-1">
-                    <h5 class="text-sm font-semibold mb-2">${escapeHtml(data.message)}</h5>
+                    <h5 class="text-sm font-semibold mb-2">${data.message}</h5>
                     <p class="text-xs text-[#777777] mt-1">${timesince} by ${escapeHtml(data.sender)}</p>
                 </div>
             </div>
