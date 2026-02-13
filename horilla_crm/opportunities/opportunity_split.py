@@ -346,11 +346,8 @@ class OpportunitySplitTabContentView(LoginRequiredMixin, TemplateView):
                 "next_row_index": existing_splits.count() + 1,
                 "team_selling_enabled": team_selling_enabled,
                 "allow_all_users": allow_all_users,
-                "currency": (
-                    self.request.active_company.currency
-                    if self.request.active_company
-                    else self.request.user.currency
-                ),
+                "currency": self.request.active_company.currency
+                or self.request.user.currency,
             }
         )
 
@@ -470,7 +467,8 @@ class SaveOpportunitySplitsView(LoginRequiredMixin, View):
                 "error": validation_result["error"],
                 "total_percentage": total_percentage,
                 "total_amount": total_amount,
-                "currency": self.request.user.currency,
+                "currency": self.request.active_company.currency
+                or self.request.user.currency,
             }
             return render(request, "opportunity_split/split_tab_content.html", context)
 
@@ -672,7 +670,8 @@ class AddSplitRowView(LoginRequiredMixin, View):
             "allow_all_users": OpportunitySettings.allow_all_users_in_splits_enabled(
                 request.active_company
             ),
-            "currency": self.request.user.currency,
+            "currency": self.request.active_company.currency
+            or self.request.user.currency,
         }
 
         return render(request, self.template_name, context)
@@ -845,7 +844,8 @@ class DeleteSplitRowView(LoginRequiredMixin, View):
             "next_row_index": row_index,
             "team_selling_enabled": team_selling_enabled,
             "allow_all_users": allow_all_users,
-            "currency": self.request.user.currency,
+            "currency": self.request.active_company.currency
+            or self.request.user.currency,
         }
 
 
@@ -887,7 +887,8 @@ class RecalculateTotalsView(LoginRequiredMixin, View):
             "split_type": split_type,
             "total_percentage": total_percentage,
             "total_amount": total_amount,
-            "currency": self.request.user.currency,
+            "currency": self.request.active_company.currency
+            or self.request.user.currency,
         }
 
         return render(request, self.template_name, context)
@@ -951,7 +952,8 @@ class RecalculateSplitRowView(LoginRequiredMixin, View):
                 "split_type": split_type,
                 "total_percentage": total_percentage,
                 "total_amount": total_amount,
-                "currency": self.request.user.currency,
+                "currency": self.request.active_company.currency
+                or self.request.user.currency,
             }
             return render(
                 request, "opportunity_split/split_row_amount_with_totals.html", context
@@ -1002,7 +1004,8 @@ class RecalculateSplitRowView(LoginRequiredMixin, View):
             "split_type": split_type,
             "total_percentage": total_percentage,
             "total_amount": total_amount,
-            "currency": self.request.user.currency,
+            "currency": self.request.active_company.currency
+            or self.request.user.currency,
         }
         return render(
             request,
