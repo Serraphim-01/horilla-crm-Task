@@ -53,6 +53,98 @@ from .forms import ColumnSelectionForm, KanbanGroupByForm, SaveFilterListForm
 logger = logging.getLogger(__name__)
 
 
+def get_default_columns_from_view(url_name, app_label, model_name, request):
+    """
+    Get default columns from the view class based on URL name.
+
+    Args:
+        url_name: The URL name (e.g., 'leads:leads_list' or 'leads_list')
+        app_label: The app label
+        model_name: The model name
+        request: The request object (for getting URL resolver)
+
+    Returns:
+        List of default column field names, or None if view cannot be resolved
+    """
+    try:
+        from django.urls import get_resolver
+
+        from horilla_generics.views import HorillaListView
+
+        # Get the URL resolver
+        resolver = get_resolver()
+        view_func = None
+
+        # Try to find the URL pattern by name
+        # URL name might be in format 'app:name' or just 'name'
+        if ":" in url_name:
+            app_name, pattern_name = url_name.split(":", 1)
+        else:
+            pattern_name = url_name
+            app_name = None
+
+        def find_pattern_by_name(patterns, target_name, target_app=None):
+            """Recursively search for URL pattern by name"""
+            for pattern in patterns:
+                # Check if this pattern matches
+                pattern_app = getattr(pattern, "app_name", None)
+                pattern_name_attr = getattr(pattern, "name", None)
+
+                if pattern_name_attr == target_name:
+                    if target_app is None or pattern_app == target_app:
+                        return getattr(pattern, "callback", None)
+
+                # Recursively search nested patterns
+                if hasattr(pattern, "url_patterns"):
+                    result = find_pattern_by_name(
+                        pattern.url_patterns, target_name, target_app
+                    )
+                    if result:
+                        return result
+            return None
+
+        view_func = find_pattern_by_name(resolver.url_patterns, pattern_name, app_name)
+
+        if not view_func:
+            return None
+
+        # Get the view class
+        if hasattr(view_func, "view_class"):
+            view_class = view_func.view_class
+        elif hasattr(view_func, "cls"):
+            view_class = view_func.cls
+        elif inspect.isclass(view_func):
+            view_class = view_func
+        else:
+            return None
+
+        # Check if it's a HorillaListView and has columns defined
+        if issubclass(view_class, HorillaListView):
+            try:
+                model = apps.get_model(app_label=app_label, model_name=model_name)
+
+                # Get columns from the view class
+                # Columns might be defined as class attribute
+                if hasattr(view_class, "columns") and view_class.columns:
+                    columns = view_class.columns
+                    # Extract field names from columns
+                    default_field_names = []
+                    for col in columns:
+                        if isinstance(col, (list, tuple)) and len(col) >= 2:
+                            default_field_names.append(col[1])
+                        elif isinstance(col, str):
+                            default_field_names.append(col)
+                    return default_field_names
+            except Exception as e:
+                logger.debug("Error getting columns from view: %s", str(e))
+                return None
+    except Exception as e:
+        logger.debug("Error resolving URL name %s: %s", url_name, str(e))
+        return None
+
+    return None
+
+
 @method_decorator(htmx_required, name="dispatch")
 class HorillaKanbanGroupByView(FormView):
     """View for configuring kanban board group-by field settings."""
@@ -295,7 +387,7 @@ class ListColumnSelectFormView(LoginRequiredMixin, FormView):
         exclude_fields = self.request.GET.get("exclude")
         exclude_fields_list = exclude_fields.split(",") if exclude_fields else []
         context["exclude_fields"] = exclude_fields
-        sensitive_fields = ["id", "password"]
+        sensitive_fields = ["id", "additional_info"]
 
         # Build available_fields - all_fields and removed_custom_field_lists are already filtered for hidden fields
         # But do one final check to ensure no hidden fields slip through
@@ -330,6 +422,47 @@ class ListColumnSelectFormView(LoginRequiredMixin, FormView):
             and field_name not in exclude_fields_list
             and field_name not in sensitive_fields
         ]
+
+        has_custom_visibility = False
+        if app_label and model_name and model and url_name:
+            view_default_field_names = get_default_columns_from_view(
+                url_name, app_label, model_name, self.request
+            )
+
+            if view_default_field_names is None:
+                view_default_field_names = []
+                for f in all_fields:
+                    if isinstance(f, (list, tuple)) and len(f) >= 2:
+                        view_default_field_names.append(f[1])
+
+            session_key = (
+                f"visible_fields_{app_label}_{model_name}_{path_context}_{url_name}"
+            )
+            session_field_names = self.request.session.get(session_key, [])
+
+            if session_field_names:
+                current_field_names = session_field_names
+            else:
+                current_field_names = []
+                for f in visible_fields:
+                    if isinstance(f, (list, tuple)) and len(f) >= 2:
+                        current_field_names.append(f[1])
+                    elif isinstance(f, str):
+                        current_field_names.append(f)
+
+            has_removed_fields = bool(removed_custom_field_lists)
+
+            default_set = set(view_default_field_names)
+            current_set = set(current_field_names)
+
+            has_added_fields = bool(current_set - default_set)
+            has_removed_default_fields = bool(default_set - current_set)
+
+            has_custom_visibility = (
+                has_removed_fields or has_added_fields or has_removed_default_fields
+            )
+
+        context["has_custom_visibility"] = has_custom_visibility
 
         if hasattr(self, "form_error"):
             context["error"] = self.form_error
@@ -554,6 +687,72 @@ class ListColumnSelectFormView(LoginRequiredMixin, FormView):
 
 
 @method_decorator(htmx_required, name="dispatch")
+class ResetColumnToDefaultView(LoginRequiredMixin, View):
+    """View for resetting column visibility to default settings."""
+
+    def post(self, request, *args, **kwargs):
+        """
+        Reset column visibility to default by deleting ListColumnVisibility record.
+
+        Expects query parameters: app_label, model_name, url_name
+        """
+        app_label = request.POST.get("app_label") or request.GET.get("app_label")
+        model_name = request.POST.get("model_name") or request.GET.get("model_name")
+        url_name = request.POST.get("url_name") or request.GET.get("url_name")
+
+        if not app_label or not model_name:
+            return HttpResponse(
+                "<div id='error-message'>Missing app_label or model_name</div>",
+                status=400,
+            )
+
+        # Clean model_name if it contains app_label
+        model_name = model_name.strip('"') if model_name else model_name
+        if model_name and "." in model_name:
+            model_name = model_name.split(".")[-1]
+
+        path_context = (
+            urlparse(request.META.get("HTTP_REFERER", ""))
+            .path.strip("/")
+            .replace("/", "_")
+        )
+        path_context = re.sub(r"_\d+$", "", path_context)
+
+        try:
+            ListColumnVisibility.all_objects.filter(
+                user=request.user,
+                app_label=app_label,
+                model_name=model_name,
+                context=path_context,
+                url_name=url_name,
+            ).delete()
+
+            session_key = (
+                f"visible_fields_{app_label}_{model_name}_{path_context}_{url_name}"
+            )
+            if session_key in request.session:
+                del request.session[session_key]
+                request.session.modified = True
+
+            cache_key = (
+                f"visible_columns_{request.user.id}_{app_label}_{model_name}_"
+                f"{path_context}_{url_name}"
+            )
+            cache.delete(cache_key)
+
+            # Return response that reloads the page
+            return HttpResponse(
+                "<script>$('#reloadButton').click();closeModal();</script>"
+            )
+        except Exception as e:
+            logger.error("Error resetting columns to default: %s", str(e))
+            return HttpResponse(
+                f"<div id='error-message'>Error resetting columns: {str(e)}</div>",
+                status=500,
+            )
+
+
+@method_decorator(htmx_required, name="dispatch")
 class MoveFieldView(LoginRequiredMixin, View):
     """View for reordering columns/fields in list views."""
 
@@ -768,6 +967,27 @@ class MoveFieldView(LoginRequiredMixin, View):
                     related_field_parents.add(parent_field)
             exclude_fields = request.GET.get("exclude")
             exclude_fields_list = exclude_fields.split(",") if exclude_fields else []
+            view_default_field_names = get_default_columns_from_view(
+                url_name, app_label, model_name, request
+            )
+
+            if view_default_field_names is None:
+                view_default_field_names = []
+                for f in all_fields:
+                    if isinstance(f, (list, tuple)) and len(f) >= 2:
+                        view_default_field_names.append(f[1])
+
+            has_removed_fields = bool(removed_custom_field_lists)
+            default_set = set(view_default_field_names)
+            current_set = set(visible_field_names)
+
+            has_added_fields = bool(current_set - default_set)
+            has_removed_default_fields = bool(default_set - current_set)
+
+            has_custom_visibility = (
+                has_removed_fields or has_added_fields or has_removed_default_fields
+            )
+
             if not form.is_valid():
                 context = {
                     "form": form,
@@ -776,6 +996,7 @@ class MoveFieldView(LoginRequiredMixin, View):
                     "visible_fields": visible_fields,
                     "url_name": url_name,
                     "exclude_fields": exclude_fields,
+                    "has_custom_visibility": has_custom_visibility,
                     "available_fields": [
                         [verbose_name, field_name]
                         for verbose_name, field_name in {
@@ -796,6 +1017,7 @@ class MoveFieldView(LoginRequiredMixin, View):
                 "visible_fields": visible_fields,
                 "exclude_fields": exclude_fields,
                 "url_name": url_name,
+                "has_custom_visibility": has_custom_visibility,
                 "available_fields": [
                     [verbose_name, field_name]
                     for verbose_name, field_name in {
@@ -815,40 +1037,120 @@ class MoveFieldView(LoginRequiredMixin, View):
 
 
 @method_decorator(htmx_required, name="dispatch")
-class SaveFilterListView(FormView):
-    """View for saving filter configurations as reusable filter lists."""
+class SaveFilterListView(LoginRequiredMixin, FormView):
+    """View for saving and editing filter configurations as reusable filter lists."""
 
     template_name = "save_filter_form.html"
     form_class = SaveFilterListForm
 
     def get_initial(self):
         initial = super().get_initial()
-        initial["model_name"] = self.request.GET.get("model_name")
-        initial["main_url"] = self.request.GET.get("main_url", "")
+        saved_list_id = self.request.GET.get("saved_list_id") or self.request.POST.get(
+            "saved_list_id"
+        )
+        is_get = self.request.method == "GET"
+        if saved_list_id:
+            try:
+                saved_list = self.request.user.saved_filter_lists.get(id=saved_list_id)
+                initial["saved_list_id"] = saved_list.id
+                if is_get:
+                    initial["list_name"] = saved_list.name
+                    initial["model_name"] = saved_list.model_name
+                    initial["main_url"] = self.request.GET.get("main_url", "")
+                    initial["make_public"] = saved_list.is_public
+            except (
+                ValueError,
+                self.request.user.saved_filter_lists.model.DoesNotExist,
+            ):
+                if saved_list_id:
+                    try:
+                        initial["saved_list_id"] = int(saved_list_id)
+                    except (TypeError, ValueError):
+                        pass
+        if not initial.get("model_name"):
+            initial["model_name"] = self.request.GET.get("model_name")
+        if "main_url" not in initial or initial["main_url"] == "":
+            initial["main_url"] = self.request.GET.get(
+                "main_url", self.request.POST.get("main_url", "")
+            )
         return initial
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        query_params = {
-            k: v
-            for k, v in self.request.GET.lists()
-            if k in ["field", "operator", "value", "start_value", "end_value", "search"]
-        }
-        context["query_params"] = query_params
-        context["main_url"] = self.request.GET.get("main_url", "")
+        saved_list_id = self.request.GET.get("saved_list_id") or self.request.POST.get(
+            "saved_list_id"
+        )
+        if saved_list_id:
+            try:
+                saved_list = self.request.user.saved_filter_lists.get(id=saved_list_id)
+                context["query_params"] = saved_list.filter_params or {}
+                context["is_edit"] = True
+            except (
+                ValueError,
+                self.request.user.saved_filter_lists.model.DoesNotExist,
+            ):
+                context["query_params"] = {}
+                context["is_edit"] = False
+        else:
+            context["query_params"] = {
+                k: v
+                for k, v in self.request.GET.lists()
+                if k
+                in ["field", "operator", "value", "start_value", "end_value", "search"]
+            }
+            context["is_edit"] = False
+        context["main_url"] = (
+            self.request.GET.get("main_url")
+            or self.request.POST.get("main_url")
+            or context.get("main_url", "")
+        )
         return context
 
     def form_valid(self, form):
         list_name = form.cleaned_data["list_name"]
         model_name = form.cleaned_data["model_name"]
+        make_public = form.cleaned_data.get("make_public", False)
+        saved_list_id = form.cleaned_data.get("saved_list_id")
         filter_params = {
             k: v
             for k, v in self.request.POST.lists()
             if k in ["field", "operator", "value", "start_value", "end_value"]
         }
-        search_query = self.request.GET.get("search", "")
-        if search_query:
-            filter_params["search"] = [search_query]
+        search_in_post = self.request.POST.getlist("search")
+        if search_in_post:
+            filter_params["search"] = search_in_post
+        elif self.request.GET.get("search"):
+            filter_params["search"] = [self.request.GET.get("search")]
+
+        if saved_list_id:
+            try:
+                saved_filter_list = self.request.user.saved_filter_lists.get(
+                    id=saved_list_id
+                )
+                saved_filter_list.name = list_name
+                saved_filter_list.filter_params = filter_params
+                saved_filter_list.is_public = make_public
+                saved_filter_list.save()
+                main_url = form.cleaned_data["main_url"]
+                view_type = f"saved_list_{saved_filter_list.id}"
+                query_params = {
+                    k: v
+                    for k, v in self.request.GET.items()
+                    if k not in ["view_type", "search"]
+                }
+                query_params["view_type"] = view_type
+                redirect_url = f"{main_url}?{urlencode(query_params)}"
+                return HttpResponseRedirect(redirect_url)
+            except (
+                ValueError,
+                self.request.user.saved_filter_lists.model.DoesNotExist,
+            ):
+                form.add_error(
+                    None,
+                    "Saved list not found or you don't have permission to edit it.",
+                )
+                return self.form_invalid(form)
+
         if not any(filter_params.values()):
             form.add_error(None, "At least one filter is required.")
             return self.form_invalid(form)
@@ -857,16 +1159,18 @@ class SaveFilterListView(FormView):
                 self.request.user.saved_filter_lists.update_or_create(
                     name=list_name,
                     model_name=model_name,
-                    defaults={"filter_params": filter_params},
+                    defaults={
+                        "filter_params": filter_params,
+                        "is_public": make_public,
+                    },
                 )
             )
             main_url = form.cleaned_data["main_url"]
             view_type = f"saved_list_{saved_filter_list.id}"
-            # Preserve other query parameters from the original request
             query_params = {
                 k: v
                 for k, v in self.request.GET.items()
-                if k not in ["view_type", "search"]  # Exclude existing view_type
+                if k not in ["view_type", "search"]
             }
             query_params["view_type"] = view_type
 

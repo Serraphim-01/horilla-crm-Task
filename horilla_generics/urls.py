@@ -43,6 +43,11 @@ urlpatterns = [
         view.ListColumnSelectFormView.as_view(),
         name="column_selector",
     ),
+    path(
+        "reset-columns-to-default/",
+        view.ResetColumnToDefaultView.as_view(),
+        name="reset_columns_to_default",
+    ),
     path("move-field/", view.MoveFieldView.as_view(), name="move_field"),
     path(
         "save-filter-list/", view.SaveFilterListView.as_view(), name="save_filter_list"
