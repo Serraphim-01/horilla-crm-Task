@@ -4,7 +4,7 @@
 <div id="modalBox" class="relative bg-white rounded-lg shadow-sm">
   <div class="p-5">
     <div class="flex justify-between items-center mb-2">
-      <h2 class="text-md font-semibold">{% trans 'New List View' %}</h2>
+      <h2 class="text-md font-semibold">{% if is_edit %}{% trans 'Edit List View' %}{% else %}{% trans 'New List View' %}{% endif %}</h2>
       <button
         data-modal-hide="default-modal6"
         onclick="closeModal()"
@@ -38,6 +38,9 @@
       {% endif %}
       <input type="hidden" name="model_name" value="{{ form.initial.model_name }}">
       <input type="hidden" name="main_url" value="{{ main_url }}">
+      {% if form.initial.saved_list_id %}
+      <input type="hidden" name="saved_list_id" value="{{ form.initial.saved_list_id }}">
+      {% endif %}
       {% for key, values in query_params.items %}
         {% for value in values %}
           <input type="hidden" name="{{ key }}" value="{{ value }}">
@@ -49,12 +52,16 @@
         <label for="{{ form.list_name.id_for_label }}" class="text-xs text-color-600">{% trans 'List View Name' %}</label>
         {{ form.list_name }}
       </div>
+      <div class="flex items-center gap-2 mt-3">
+        {{ form.make_public }}
+        <label for="{{ form.make_public.id_for_label }}" class="text-xs text-color-600">{% trans 'Make as public' %}</label>
+      </div>
       <div class="flex justify-end p-5">
         <button
           type="submit"
           class="text-sm px-4 py-2 bg-primary-600 rounded-md hover:bg-primary-800 transition duration-300 text-[white]"
         >
-          {% trans 'Save' %}
+          {% if is_edit %}{% trans 'Update' %}{% else %}{% trans 'Save' %}{% endif %}
         </button>
       </div>
     </form>

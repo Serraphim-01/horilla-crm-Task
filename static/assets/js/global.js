@@ -555,7 +555,7 @@ const updateActionButtonsVisibility = debounce(function (viewId) {
     const totalSelectedCount = table.selectedRecordIds.length;
     const hasSelections = totalSelectedCount > 0;
 
-    $(`#export-all-btn-${viewId}, #bulk-update-btn-${viewId}, #unselect-all-btn-${viewId}, #bulk-delete-btn-${viewId}, [id^="bulk-action-"][id$="-${viewId}"],#total-selected-count-${viewId}`)
+    $(`#export-all-btn-${viewId}, #bulk-update-btn-${viewId}, #unselect-all-btn-${viewId}, #bulk-delete-btn-${viewId}, [id^="bulk-action-"][id$="-${viewId}"]`)
         .toggle(hasSelections);
 
     if (hasSelections) {

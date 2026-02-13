@@ -1198,6 +1198,17 @@ class SaveFilterListForm(forms.Form):
         max_length=100, required=True, widget=forms.HiddenInput()
     )
     main_url = forms.CharField(required=False, widget=forms.HiddenInput())
+    saved_list_id = forms.IntegerField(required=False, widget=forms.HiddenInput())
+    make_public = forms.BooleanField(
+        required=False,
+        initial=False,
+        label="Make as public",
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-4 h-4 bg-[#E9EDF7] rounded-sm accent-[#e54f38]",
+            }
+        ),
+    )
 
     def clean(self):
         cleaned_data = super().clean()
