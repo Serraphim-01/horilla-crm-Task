@@ -149,11 +149,19 @@
 
 {% comment %} <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script> {% endcomment %}
 <script>
+    (function() {
+    // Scope all selectors to this modal so we don't touch #summernote in #modalBox when both exist in DOM
+    var $mailModal = $('#horillaModalBox');
+    function $sn() { return $mailModal.find('#summernote'); }
+    function $body() { return $mailModal.find('#template_body'); }
+
     let summernoteInitialized = false;
     let savedCursorPosition = null; // Store cursor position
 
     function createSummernoteInstance() {
-        $('#summernote').summernote({
+        var $editor = $sn();
+        if (!$editor.length) return;
+        $editor.summernote({
             height: 300,
             minHeight: 300,
             maxHeight: 400,
@@ -184,17 +192,17 @@
     }
 
     function restoreSummernoteContent() {
-        const existingContent = $('#template_body').val();
+        const existingContent = $body().val();
         if (existingContent && existingContent.trim() !== '' && summernoteInitialized) {
-            $('#summernote').summernote('code', existingContent);
+            $sn().summernote('code', existingContent);
         }
     }
     // Save cursor position before opening modal
     function saveCursorPosition() {
-        if (summernoteInitialized && $('#summernote').next('.note-editor').length) {
+        if (summernoteInitialized && $sn().next('.note-editor').length) {
             try {
                 // Check if we're in code view
-                const isCodeView = $('.note-editor').hasClass('codeview');
+                const isCodeView = $mailModal.find('.note-editor').hasClass('codeview');
 
                 if (!isCodeView) {
                     // Save the current selection/range for WYSIWYG view
@@ -219,14 +227,14 @@
 
     // Restore cursor position and insert text
     function insertTextAtCursor(text) {
-        if (summernoteInitialized && $('#summernote').next('.note-editor').length) {
+        if (summernoteInitialized && $sn().next('.note-editor').length) {
             try {
                 // Check if we're in code view
-                const isCodeView = $('.note-editor').hasClass('codeview');
+                const isCodeView = $mailModal.find('.note-editor').hasClass('codeview');
 
                 if (isCodeView) {
                     // Handle code view - insert into textarea
-                    const textarea = $('.note-codable')[0];
+                    const textarea = $mailModal.find('.note-codable')[0];
                     if (textarea) {
                         const start = textarea.selectionStart;
                         const end = textarea.selectionEnd;
@@ -244,7 +252,7 @@
                         textarea.focus();
 
                         // Trigger Summernote to sync from code view
-                        $('#summernote').summernote('code', textarea.value);
+                        $sn().summernote('code', textarea.value);
                     }
                 } else {
                     // Handle normal WYSIWYG view
@@ -256,18 +264,18 @@
                             selection.addRange(savedCursorPosition);
 
                             // Now insert the text using Summernote
-                            $('#summernote').summernote('focus');
-                            $('#summernote').summernote('insertText', text);
+                            $sn().summernote('focus');
+                            $sn().summernote('insertText', text);
                         } catch (e) {
                             console.log('Error with saved position, using fallback:', e);
                             // Fallback: just insert at current position
-                            $('#summernote').summernote('focus');
-                            $('#summernote').summernote('insertText', text);
+                            $sn().summernote('focus');
+                            $sn().summernote('insertText', text);
                         }
                     } else {
                         // No saved position, insert at current cursor
-                        $('#summernote').summernote('focus');
-                        $('#summernote').summernote('insertText', text);
+                        $sn().summernote('focus');
+                        $sn().summernote('insertText', text);
                     }
                 }
 
@@ -284,17 +292,15 @@
     }
 
     function initMailForm() {
-        const editorContainer = document.getElementById('editor-container');
-        const summernoteElement = document.getElementById('summernote');
+        var $editor = $sn();
+        if (!$editor.length) return;
 
-        if (!editorContainer || !summernoteElement) return;
-
-        // Check if Summernote needs to be initialized
-        if (!summernoteInitialized || !$('#summernote').next('.note-editor').length) {
+        // Check if Summernote needs to be initialized (scoped to this modal)
+        if (!summernoteInitialized || !$editor.next('.note-editor').length) {
             try {
-                // Destroy existing instance if it exists
-                if ($('#summernote').next('.note-editor').length) {
-                    $('#summernote').summernote('destroy');
+                // Destroy existing instance in this modal if it exists
+                if ($editor.next('.note-editor').length) {
+                    $editor.summernote('destroy');
                 }
                 summernoteInitialized = false;
                 createSummernoteInstance();
@@ -311,27 +317,27 @@
     }
 
     function syncEditorContent() {
-        if (summernoteInitialized && $('#summernote').next('.note-editor').length) {
+        if (summernoteInitialized && $sn().next('.note-editor').length) {
             try {
-                const content = $('#summernote').summernote('code');
-                $("#template_body").val(content);
-                document.getElementById('template_body').value = content;
+                const content = $sn().summernote('code');
+                $body().val(content);
             } catch (error) {
                 console.log('Error syncing editor content:', error);
             }
         }
     }
-    $(document).on("click", "button[title='Preview']", syncEditorContent);
+    $(document).on("click", "#horillaModalBox button[title='Preview']", syncEditorContent);
 
     function cleanupEditor() {
-        if (summernoteEditor && summernoteEditor.length) {
+        var $editor = $sn();
+        if ($editor.length && $editor.next('.note-editor').length) {
             try {
-                summernoteEditor.summernote('destroy');
-                summernoteEditor = null;
+                $editor.summernote('destroy');
             } catch (error) {
                 console.log('Error destroying Summernote:', error);
             }
         }
+        summernoteInitialized = false;
     }
 
     $(document).on("htmx:afterSwap", function(evt) {
@@ -342,7 +348,7 @@
         }
     });
 
-    $(document).on('click', '#close-template-btn', function() {
+    $(document).on('click', '#horillaModalBox #close-template-btn', function() {
         cleanupEditor();
     });
 
@@ -352,6 +358,11 @@
         }
     });
 
-    // Make insertTextAtCursor globally available
+    // Make insertTextAtCursor globally available for field-selection modal
     window.insertTextAtCursor = insertTextAtCursor;
+
+    // Initialize Summernote when this form is loaded (e.g. after navigating from notification template).
+    // Script runs after htmx:afterSwap has already fired, so the listener above misses the first load.
+    setTimeout(function() { initMailForm(); }, 150);
+    })();
 </script>

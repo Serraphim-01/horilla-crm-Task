@@ -59,7 +59,7 @@ urlpatterns = [
     ),
     path(
         "notification_template_detail_view/<int:pk>/",
-        notification_template.MailTemplateDetailView.as_view(),
+        notification_template.NotificationTemplateDetailView.as_view(),
         name="notification_template_detail_view",
     ),
     path(
