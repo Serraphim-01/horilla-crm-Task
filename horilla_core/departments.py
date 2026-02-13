@@ -79,7 +79,7 @@ class DepartmentNavbar(LoginRequiredMixin, HorillaNavView):
         if self.request.user.has_perm("horilla_core.view_department"):
             return [
                 {
-                    "action": _("Add column to list"),
+                    "action": _("Add Column to List"),
                     "attrs": f"""
                             hx-get="{reverse_lazy('horilla_generics:column_selector')}?app_label={self.model_app_label}&model_name={self.model_name}&url_name={self.url_name}"
                             onclick="openModal()"
