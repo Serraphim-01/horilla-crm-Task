@@ -99,6 +99,7 @@ class AccountsNavbar(LoginRequiredMixin, HorillaNavView):
     filterset_class = AccountFilter
     exclude_kanban_fields = "company"
     enable_actions = True
+    enable_quick_filters = True
 
     @cached_property
     def new_button(self):
@@ -130,6 +131,7 @@ class AccountListView(LoginRequiredMixin, HorillaListView):
     filterset_class = AccountFilter
     search_url = reverse_lazy("accounts:accounts_list_view")
     main_url = reverse_lazy("accounts:accounts_view")
+    enable_quick_filters = True
 
     def no_record_add_button(self):
         """Return the 'New Account' button if the user has add permission."""
