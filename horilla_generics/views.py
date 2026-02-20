@@ -20,7 +20,7 @@ from functools import cached_property, reduce
 from io import BytesIO
 from operator import or_
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse, urlunparse
 
 import pytz
 from auditlog.models import LogEntry
@@ -29,6 +29,7 @@ from auditlog.models import LogEntry
 from django import forms
 from django.apps import apps
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import redirect_to_login
 from django.contrib.contenttypes.fields import GenericRelation
@@ -55,6 +56,7 @@ from django.utils import timezone, translation
 from django.utils.dateparse import parse_date, parse_datetime, parse_time
 from django.utils.decorators import method_decorator
 from django.utils.html import escapejs
+from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import (
     DeleteView,
@@ -76,9 +78,10 @@ from horilla.exceptions import HorillaHttp404
 from horilla.utils.choices import FIELD_TYPE_MAP, TABLE_FALLBACK_FIELD_TYPES
 from horilla.utils.shortcuts import get_object_or_404
 from horilla_core.decorators import htmx_required, permission_required_or_denied
-from horilla_core.mixins import OwnerQuerysetMixin
+from horilla_core.mixins import OwnerQuerysetMixin, get_allowed_users_queryset_for_model
 from horilla_core.models import (
     ActiveTab,
+    DetailFieldVisibility,
     HorillaAttachment,
     KanbanGroupBy,
     ListColumnVisibility,
@@ -88,7 +91,12 @@ from horilla_core.models import (
     RecycleBin,
     SavedFilterList,
 )
-from horilla_core.utils import filter_hidden_fields, get_field_permissions_for_model
+from horilla_core.utils import (
+    filter_hidden_fields,
+    get_editable_fields,
+    get_field_permissions_for_model,
+    get_user_field_permission,
+)
 from horilla_generics.forms import (
     HorillaAttachmentForm,
     HorillaHistoryForm,
@@ -109,6 +117,7 @@ class HorillaView(TemplateView):
     template_name = "base.html"
     list_url: str = ""
     kanban_url: str = ""
+    group_by_url: str = ""
     nav_url: str = ""
 
     def get_context_data(self, **kwargs):
@@ -119,6 +128,7 @@ class HorillaView(TemplateView):
         context["nav_url"] = self.nav_url
         context["list_url"] = self.list_url
         context["kanban_url"] = self.kanban_url
+        context["group_by_url"] = self.group_by_url
         return context
 
 
@@ -131,6 +141,10 @@ class HorillaNavView(TemplateView):
     search_url: str = ""
     main_url: str = ""
     kanban_url: str = ""
+    group_by_url: str = ""
+    default_layout: str = (
+        "list"  # "list", "kanban", or "group_by" when no layout in URL
+    )
     actions: list = []
     new_button: dict = None
     second_button: dict = None
@@ -203,11 +217,17 @@ class HorillaNavView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["effective_layout"] = self.request.GET.get("layout") or getattr(
+            self, "default_layout", "list"
+        )
         context["nav_title"] = self.nav_title
         context["search_url"] = self.search_url or self.request.path
         context["search_push_url"] = "true" if self.search_push_url else "false"
         context["main_url"] = self.main_url or self.request.path
         context["kanban_url"] = self.kanban_url
+        context["kanban_view_url"] = self.kanban_url
+        context["group_by_url"] = getattr(self, "group_by_url", None) or ""
+        context["group_by_view_url"] = getattr(self, "group_by_url", None) or ""
         context["actions"] = self.actions
         context["new_button"] = self.new_button or {}
         context["second_button"] = self.second_button or {}
@@ -293,28 +313,41 @@ class HorillaNavView(TemplateView):
                 )
                 if exclude_list:
                     column_selector_url += "&exclude=" + ",".join(exclude_list)
-            actions.extend(
-                [
+            list_actions = [
+                {
+                    "action": _("Kanban Settings"),
+                    "attrs": f"""
+                    hx-get="{reverse_lazy('horilla_generics:create_kanban_group')}?model={self.model_name}&app_label={self.model_app_label}&exclude_fields={self.exclude_kanban_fields}&view_type=kanban"
+                    onclick="openModal()"
+                    hx-target="#modalBox"
+                    hx-swap="innerHTML"
+                    """,
+                },
+            ]
+            if getattr(self, "group_by_url", None):
+                list_actions.append(
                     {
-                        "action": _("Kanban Settings"),
+                        "action": _("Group By Settings"),
                         "attrs": f"""
-                        hx-get="{reverse_lazy('horilla_generics:create_kanban_group')}?model={self.model_name}&app_label={self.model_app_label}&exclude_fields={self.exclude_kanban_fields}"
+                        hx-get="{reverse_lazy('horilla_generics:create_kanban_group')}?model={self.model_name}&app_label={self.model_app_label}&exclude_fields={self.exclude_kanban_fields}&view_type=group_by"
                         onclick="openModal()"
                         hx-target="#modalBox"
                         hx-swap="innerHTML"
                         """,
-                    },
-                    {
-                        "action": "Add Column to List",
-                        "attrs": f"""
+                    }
+                )
+            list_actions.append(
+                {
+                    "action": "Add Column to List",
+                    "attrs": f"""
                         hx-get="{column_selector_url}"
                         onclick="openModal()"
                         hx-target="#modalBox"
                         hx-swap="innerHTML"
                         """,
-                    },
-                ]
+                }
             )
+            actions.extend(list_actions)
 
             # Add Quick Filter action if enabled
             if self.enable_quick_filters:
@@ -860,6 +893,22 @@ class HorillaListView(ListView):
                     else:
                         serializable_columns.append([str(col[0]) if col else "", ""])
 
+                # Filter out hidden fields based on field permissions before creating
+                if serializable_columns and self.model:
+                    field_names = [
+                        col[1] for col in serializable_columns if len(col) >= 2
+                    ]
+                    visible_field_names = filter_hidden_fields(
+                        self.request.user, self.model, field_names
+                    )
+                    serializable_columns = [
+                        col
+                        for col in serializable_columns
+                        if isinstance(col, (list, tuple))
+                        and len(col) >= 2
+                        and col[1] in visible_field_names
+                    ]
+
                 visibility = ListColumnVisibility.all_objects.create(
                     user=self.request.user,
                     app_label=self.model._meta.app_label,
@@ -988,22 +1037,25 @@ class HorillaListView(ListView):
         # Exclude histories and full_histories from export additional columns
         exclude_from_export = ["histories", "full_histories"]
         model_fields = []
-        is_bulk_update_trigger = False
+        # Bulk update form context: when we're building fields for the bulk update modal
+        is_bulk_update_trigger = self.request.POST.get(
+            "bulk_update_form"
+        ) == "true" or (
+            self.request.META.get("HTTP_HX_TRIGGER")
+            and str(self.request.META.get("HTTP_HX_TRIGGER", "")).startswith(
+                "bulk-update-btn"
+            )
+        )
         trigger_name = self.request.headers.get("Hx-Trigger-Name")
         is_operator_trigger = trigger_name == "operator"
         trigger = self.request.GET.get("hx_trigger")
         is_filter_form_trigger = trigger == "filter-form"
-        bulk_update_trigger_value = self.request.META.get("HTTP_HX_TRIGGER")
-        if bulk_update_trigger_value:
-            if bulk_update_trigger_value.startswith("bulk-update-btn"):
-                is_bulk_update_trigger = True
 
         has_filterset = bool(self.filterset_class)
         value_field = self.request.GET.get("value", "")
+        use_full_queryset_for_choices = False
         for field in self.model._meta.fields:
 
-            if field.auto_created or field.name == "id":
-                continue
             if field.name in exclude_from_export:
                 continue
             if self.filterset_class:
@@ -1026,6 +1078,7 @@ class HorillaListView(ListView):
                 related_model = field.related_model
                 related_app_label = related_model._meta.app_label
                 related_model_name = related_model.__name__
+                user_model = get_user_model()
 
                 field_type = "foreignkey"
                 if (
@@ -1034,17 +1087,29 @@ class HorillaListView(ListView):
                     or is_filter_form_trigger
                     or value_field
                 ):
-                    # Try to get queryset from filterset if available (e.g., for OwnerFiltersetMixin)
+                    # For User FK (owner-style fields), use same logic as OwnerQuerysetMixin
+                    # so bulk update/filter dropdown shows only allowed users (self + subordinates
+                    # for add_own_perm, or all users for add_perm).
                     related_objects_queryset = None
-                    if self.filterset_class and field.name:
+                    if related_model == user_model or issubclass(
+                        related_model, user_model
+                    ):
+                        related_objects_queryset = get_allowed_users_queryset_for_model(
+                            self.request.user, self.model
+                        )
+
+                    # For non-User FK, try filterset if available (e.g., OwnerFiltersetMixin for other FKs)
+                    if (
+                        related_objects_queryset is None
+                        and self.filterset_class
+                        and field.name
+                    ):
                         try:
-                            # Create a temporary filterset instance to trigger mixins like OwnerFiltersetMixin
                             temp_filterset = self.filterset_class(
                                 request=self.request, data={}
                             )
                             if field.name in temp_filterset.filters:
                                 filter_obj = temp_filterset.filters[field.name]
-                                # Check if the filter has a queryset set (e.g., by OwnerFiltersetMixin)
                                 if hasattr(filter_obj, "field") and hasattr(
                                     filter_obj.field, "queryset"
                                 ):
@@ -1052,7 +1117,6 @@ class HorillaListView(ListView):
                                 elif hasattr(filter_obj, "queryset"):
                                     related_objects_queryset = filter_obj.queryset
                         except Exception:
-                            # If filterset instantiation fails, fall back to default
                             pass
 
                     # Fall back to default queryset if filterset didn't provide one
@@ -1060,18 +1124,30 @@ class HorillaListView(ListView):
                         related_objects_queryset = field.related_model.objects.all()
 
                     related_objects = related_objects_queryset.order_by("id")
-                    paginator = Paginator(related_objects, 10)
 
-                    try:
-                        paginated_objects = paginator.page(1)
-                    except PageNotAnInteger:
-                        paginated_objects = paginator.page(1)
-                    except EmptyPage:
-                        paginated_objects = paginator.page(paginator.num_pages)
-                    choices = [
-                        {"value": str(obj.pk), "label": str(obj)}
-                        for obj in paginated_objects
-                    ]
+                    # For User FK in bulk update form, show all allowed users (set is small)
+                    use_full_queryset_for_choices = is_bulk_update_trigger and (
+                        related_model == user_model
+                        or issubclass(related_model, user_model)
+                    )
+                    if use_full_queryset_for_choices:
+                        choices = [
+                            {"value": str(obj.pk), "label": str(obj)}
+                            for obj in related_objects
+                        ]
+                    else:
+                        paginator = Paginator(related_objects, 10)
+                        try:
+                            paginated_objects = paginator.page(1)
+                        except PageNotAnInteger:
+                            paginated_objects = paginator.page(1)
+                        except EmptyPage:
+                            paginated_objects = paginator.page(paginator.num_pages)
+                        choices = [
+                            {"value": str(obj.pk), "label": str(obj)}
+                            for obj in paginated_objects
+                        ]
+
                     if value_field:
                         try:
                             value_obj = related_objects_queryset.get(pk=value_field)
@@ -1097,17 +1173,19 @@ class HorillaListView(ListView):
             if has_filterset:
                 operators = self.filterset_class.get_operators_for_field(field_type)
 
-            model_fields.append(
-                {
-                    "name": field.name,
-                    "type": field_type,
-                    "verbose_name": field.verbose_name,
-                    "choices": choices,
-                    "operators": operators,
-                    "model": related_model_name,
-                    "app_label": related_app_label,
-                }
-            )
+            field_dict = {
+                "name": field.name,
+                "type": field_type,
+                "verbose_name": field.verbose_name,
+                "choices": choices,
+                "operators": operators,
+                "model": related_model_name,
+                "app_label": related_app_label,
+            }
+            # So bulk update template can render a plain select (no AJAX) and respect our restricted User list
+            if field_class_name == "ForeignKey" and use_full_queryset_for_choices:
+                field_dict["use_static_options"] = True
+            model_fields.append(field_dict)
 
         # Only include properties if explicitly requested (for export) AND model defines PROPERTY_LABELS
         if include_properties:
@@ -1872,9 +1950,12 @@ class HorillaListView(ListView):
         if record_ids:
             try:
                 record_ids = json.loads(record_ids)
-                # Collect all bulk update fields and values
+                # Only accept fields user has read+write permission for
+                editable_bulk_field_names = get_editable_fields(
+                    request.user, self.model, self.bulk_update_fields
+                )
                 bulk_updates = {}
-                for field in self.bulk_update_fields:
+                for field in editable_bulk_field_names:
                     value = request.POST.get(f"bulk_update_value_{field}")
                     if value:  # Only include fields with non-empty values
                         bulk_updates[field] = value
@@ -2446,15 +2527,23 @@ class HorillaListView(ListView):
         Perform and validate bulk updates for given record IDs.
 
         Coerces values according to field types and applies the updates; returns
-        an HTTP response with error info on failure.
+        an HTTP response with error info on failure. Only fields with read+write
+        permission are applied.
         """
         try:
             queryset = self.model.objects.filter(id__in=record_ids)
             field_infos = {field["name"]: field for field in self._get_model_fields()}
+            # Enforce field-level permissions: only apply updates for editable fields
+            editable_bulk_field_names = get_editable_fields(
+                self.request.user, self.model, self.bulk_update_fields
+            )
+            editable_bulk_set = set(editable_bulk_field_names)
 
             update_dict = {}
             has_valid_values = False
             for field_name, new_value in bulk_updates.items():
+                if field_name not in editable_bulk_set:
+                    continue
                 if new_value == "" or new_value is None:
                     continue
 
@@ -2946,20 +3035,15 @@ class HorillaListView(ListView):
                 for value in values:
                     new_query_params.appendlist(key, value)
 
-        # Make QueryDict immutable (Django standard)
         new_query_params._mutable = False
 
-        # Temporarily replace request.GET with cleaned params for context and template rendering
-        # Clear any cached GET property and assign the new QueryDict
         original_get = request.GET
         original_query_string = request.META.get("QUERY_STRING", "")
         new_query_string = new_query_params.urlencode()
 
-        # Clear cached GET property if it exists
         if hasattr(request, "_get"):
             delattr(request, "_get")
 
-        # Update both GET and META to ensure consistency
         request.__dict__["GET"] = new_query_params
         request.META["QUERY_STRING"] = new_query_string
 
@@ -2968,7 +3052,6 @@ class HorillaListView(ListView):
 
         response = render(request, self.template_name, context)
 
-        # Restore original request.GET and META after rendering
         request.__dict__["GET"] = original_get
         request.META["QUERY_STRING"] = original_query_string
 
@@ -2979,12 +3062,10 @@ class HorillaListView(ListView):
             )
             response["HX-Push-Url"] = url
             response["HX-Replace-Url"] = url
-            # Add simple reload triggers
             self._add_reload_triggers(response, new_query_string, self.main_url)
         else:
             response["HX-Push-Url"] = "false"
 
-        # Add cache control headers
         response["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response["Pragma"] = "no-cache"
         response["Expires"] = "0"
@@ -2998,10 +3079,23 @@ class HorillaListView(ListView):
             context["ordered_ids_key"] = self.ordered_ids_key
             context["ordered_ids"] = self.request.session.get(self.ordered_ids_key, [])
 
-        # Get filter fields without properties (for filter dropdown)
         filter_fields = self._get_model_fields(include_properties=False)
-        # Get export fields with properties (for export additional columns)
         export_additional_fields = self._get_model_fields(include_properties=True)
+
+        available_column_names = {col[1] for col in self._get_columns()}
+        export_additional_fields = [
+            f
+            for f in export_additional_fields
+            if f["name"] not in available_column_names
+        ]
+
+        additional_field_names = [f["name"] for f in export_additional_fields]
+        visible_additional_names = filter_hidden_fields(
+            self.request.user, self.model, additional_field_names
+        )
+        export_additional_fields = [
+            f for f in export_additional_fields if f["name"] in visible_additional_names
+        ]
         view_type = self.request.GET.get("view_type") or self.get_default_view_type()
         context["saved_list_name"] = None  # default
 
@@ -3074,14 +3168,19 @@ class HorillaListView(ListView):
             "exact": "Equals",
             "iexact": "Equals (case insensitive)",
             "icontains": "Contains",
+            "ne": "Not Equals",
             "gt": "Greater than",
             "lt": "Less than",
             "gte": "Greater than or equal to",
             "lte": "Less than or equal to",
             "startswith": "Starts with",
+            "istartswith": "Starts with",
             "endswith": "Ends with",
+            "iendswith": "Ends with",
             "date_range": "Between",
+            "between": "Between",
             "isnull": "Is empty",
+            "isnotnull": "Is not empty",
         }
         context["operator_display"] = operator_display
         context["pinned_view"] = PinnedView.all_objects.filter(
@@ -3266,8 +3365,14 @@ class HorillaListView(ListView):
         context["selected_ids_json"] = json.dumps(context["selected_ids"])
         context["custom_bulk_actions"] = self.custom_bulk_actions
         context["additional_action_button"] = self.additional_action_button
+        # Only show fields in bulk update form when user has read+write permission
+        editable_bulk_field_names = get_editable_fields(
+            self.request.user, self.model, self.bulk_update_fields
+        )
         bulk_update_fields_metadata = [
-            field for field in filter_fields if field["name"] in self.bulk_update_fields
+            field
+            for field in filter_fields
+            if field["name"] in editable_bulk_field_names
         ]
         context["bulk_update_fields"] = bulk_update_fields_metadata
         context["clear_session_button_enabled"] = self.clear_session_button_enabled
@@ -3462,9 +3567,10 @@ class HorillaKanbanView(HorillaListView):
                     status=404, content=f"View class {class_name} not found"
                 )
 
-            # Instantiate the view class
+            # Instantiate the view class and ensure it has attributes set by dispatch
             view = view_class()
             view.request = request
+            view.kwargs = getattr(view, "kwargs", {})
 
             # Initialize model
             try:
@@ -3560,6 +3666,12 @@ class HorillaKanbanView(HorillaListView):
             return response
 
         except Exception as e:
+            logger.exception(
+                "update_kanban_item failed for %s.%s: %s",
+                app_label,
+                model_name,
+                e,
+            )
             return HttpResponse(status=500, content=f"Error: {str(e)}")
 
     def update_kanban_column_order(self, request):
@@ -3687,14 +3799,62 @@ class HorillaKanbanView(HorillaListView):
         except Exception as e:
             return HttpResponse(status=500, content=f"Error: {str(e)}")
 
+    def _get_kanban_exclude_include_fields(self, view_type="kanban"):
+        """Return (exclude_fields, include_fields) used by Kanban/GroupBy settings for this view."""
+        exclude_str = getattr(self, "exclude_kanban_fields", "") or ""
+        exclude_fields = [f.strip() for f in exclude_str.split(",") if f.strip()]
+        include_fields = getattr(self, "include_kanban_fields", None)
+        return exclude_fields, include_fields
+
+    def _get_allowed_group_by_fields(self, view_type="kanban"):
+        """Return list of field names the user is allowed to group by (respects field permissions
+        and exclude_kanban_fields/include_kanban_fields so we only consider fields shown in settings).
+        """
+        model_name = self.model.__name__
+        app_label = self.model._meta.app_label
+        exclude_fields, include_fields = self._get_kanban_exclude_include_fields(
+            view_type
+        )
+        temp = KanbanGroupBy(model_name=model_name, app_label=app_label)
+        choices = temp.get_model_groupby_fields(
+            user=self.request.user,
+            exclude_fields=exclude_fields,
+            include_fields=include_fields,
+        )
+        return [c[0] for c in choices]
+
+    def _is_field_visible_for_group_by(self, field_name):
+        """Check if a field is visible (not hidden) for the current user."""
+        if not field_name:
+            return False
+        perm = get_user_field_permission(self.request.user, self.model, field_name)
+        return perm != "hidden"
+
     def get_group_by_field(self):
-        """Return the field used to group Kanban columns for this view's model."""
+        """Return the field used to group Kanban columns for this view's model.
+        Falls back to an allowed field when the preferred field has 'hidden' permission.
+        Never returns a field with 'hidden' permission.
+        """
         model_name = self.model.__name__
         app_label = self.model._meta.app_label
         default_group = KanbanGroupBy.all_objects.filter(
-            model_name=model_name, app_label=app_label, user=self.request.user
+            model_name=model_name,
+            app_label=app_label,
+            user=self.request.user,
+            view_type="kanban",
         ).first()
-        return default_group.field_name if default_group else self.group_by_field
+        preferred = default_group.field_name if default_group else self.group_by_field
+        allowed = self._get_allowed_group_by_fields(view_type="kanban")
+        if (
+            preferred
+            and preferred in allowed
+            and self._is_field_visible_for_group_by(preferred)
+        ):
+            return preferred
+        for field_name in allowed:
+            if self._is_field_visible_for_group_by(field_name):
+                return field_name
+        return None
 
     def get_context_data(self, **kwargs):
         """Populate Kanban view context including grouping, columns and items."""
@@ -3714,7 +3874,9 @@ class HorillaKanbanView(HorillaListView):
         context["class_name"] = self.__class__.__name__
         context["height_kanban"] = self.height_kanban
         if not group_by:
-            context["error"] = "No grouping field specified."
+            context["error"] = _(
+                "No grouping field specified or you don't have permission to view any grouping fields."
+            )
             return context
 
         try:
@@ -3723,9 +3885,9 @@ class HorillaKanbanView(HorillaListView):
                 (hasattr(field, "choices") and field.choices)
                 or isinstance(field, ForeignKey)
             ):
-                context["error"] = (
-                    f"Field '{group_by}' is not a Choice field or ForeignKey field."
-                )
+                context["error"] = _(
+                    "Field '%(field)s' is not a Choice field or ForeignKey field."
+                ) % {"field": group_by}
                 return context
 
             allow_column_reorder = False
@@ -3759,7 +3921,7 @@ class HorillaKanbanView(HorillaListView):
                         }
 
                 sorted_items = {}
-                for value, _ in field.choices:
+                for value, __ in field.choices:
                     if value in grouped_items:
                         sorted_items[value] = grouped_items[value]
                 for key, group in grouped_items.items():
@@ -3798,17 +3960,22 @@ class HorillaKanbanView(HorillaListView):
                 else:
                     related_items = related_model.objects.all().order_by("pk")
 
+                # Default lead/stage colour that should display as bg-primary-600
+                _default_hex_use_primary = "#f39022"
                 for related_item in related_items:
+                    raw_color = (
+                        getattr(related_item, "color", None)
+                        if has_colour_field
+                        else None
+                    )
+                    if raw_color in (None, "", _default_hex_use_primary):
+                        raw_color = "primary-600"
                     grouped_items[related_item.pk] = {
                         "label": str(related_item),
                         "items": queryset.filter(
                             **{f"{group_by}__pk": related_item.pk}
                         ),
-                        "color": (
-                            getattr(related_item, "color", None)
-                            if has_colour_field
-                            else None
-                        ),
+                        "color": raw_color,
                     }
 
                 if field.null:
@@ -4074,13 +4241,381 @@ class HorillaKanbanView(HorillaListView):
             return HttpResponse(status=500, content=f"Error: {str(e)}")
 
 
+@method_decorator(htmx_required, name="dispatch")
+class HorillaGroupByView(HorillaListView):
+    """
+    Generic view for displaying data in a grouped list layout.
+    Groups rows by a selected field (ChoiceField or ForeignKey) and displays
+    them as collapsible sections. Uses same group-by preference as Kanban.
+    """
+
+    template_name = "group_by_view.html"
+    group_by_field = None
+    filterset_module = "filters"
+    bulk_select_option = False
+    table_class = True
+    table_height = False
+    table_height_as_class = "h-[calc(_100vh_-_320px_)]"
+    paginate_by = 20
+
+    _view_registry = {}
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if hasattr(cls, "model") and cls.model:
+            HorillaGroupByView._view_registry[cls.model] = cls
+
+    def _get_kanban_exclude_include_fields(self, view_type="group_by"):
+        """Return (exclude_fields, include_fields) used by Kanban/GroupBy settings for this view."""
+        exclude_str = getattr(self, "exclude_kanban_fields", "") or ""
+        exclude_fields = [f.strip() for f in exclude_str.split(",") if f.strip()]
+        include_fields = getattr(self, "include_kanban_fields", None)
+        return exclude_fields, include_fields
+
+    def _get_allowed_group_by_fields(self, view_type="group_by"):
+        """Return list of field names the user is allowed to group by (respects field permissions
+        and exclude_kanban_fields so we only consider fields shown in settings).
+        """
+        model_name = self.model.__name__
+        app_label = self.model._meta.app_label
+        exclude_fields, include_fields = self._get_kanban_exclude_include_fields(
+            view_type
+        )
+        temp = KanbanGroupBy(model_name=model_name, app_label=app_label)
+        choices = temp.get_model_groupby_fields(
+            user=self.request.user,
+            exclude_fields=exclude_fields,
+            include_fields=include_fields,
+        )
+        return [c[0] for c in choices]
+
+    def _is_field_visible_for_group_by(self, field_name):
+        """Check if a field is visible (not hidden) for the current user."""
+        if not field_name:
+            return False
+        perm = get_user_field_permission(self.request.user, self.model, field_name)
+        return perm != "hidden"
+
+    def get_group_by_field(self):
+        """Return the field used to group rows. Uses separate preference from Kanban.
+        Falls back to an allowed field when the preferred field has 'hidden' permission.
+        Never returns a field with 'hidden' permission.
+        """
+        model_name = self.model.__name__
+        app_label = self.model._meta.app_label
+        default_group = KanbanGroupBy.all_objects.filter(
+            model_name=model_name,
+            app_label=app_label,
+            user=self.request.user,
+            view_type="group_by",
+        ).first()
+        preferred = default_group.field_name if default_group else self.group_by_field
+        allowed = self._get_allowed_group_by_fields(view_type="group_by")
+        if (
+            preferred
+            and preferred in allowed
+            and self._is_field_visible_for_group_by(preferred)
+        ):
+            return preferred
+        for field_name in allowed:
+            if self._is_field_visible_for_group_by(field_name):
+                return field_name
+        return None
+
+    def get_context_data(self, **kwargs):
+        """Populate context with grouped items for list display."""
+        if not hasattr(self, "object_list"):
+            self.object_list = self.get_queryset()
+
+        context = super().get_context_data(**kwargs)
+        queryset = self.object_list
+        group_by = self.get_group_by_field()
+
+        app_label = self.model.__module__.rsplit(".", 1)[0] if self.model else ""
+        model_name = self.model.__name__ if self.model else ""
+        context["app_label"] = app_label.split(".")[-1] if app_label else app_label
+        context["model_name"] = model_name
+
+        if not group_by:
+            context["error"] = _(
+                "No grouping field specified or you don't have permission to view any grouping fields."
+            )
+            return context
+
+        try:
+            field = self.model._meta.get_field(group_by)
+            if not (
+                (hasattr(field, "choices") and field.choices)
+                or isinstance(field, ForeignKey)
+            ):
+                context["error"] = _(
+                    "Field '%(field)s' is not a Choice field or ForeignKey field."
+                ) % {"field": group_by}
+                return context
+
+            grouped_items = {}
+            paginated_groups = {}
+            paginate_by = getattr(self, "paginate_by", 20)
+
+            if hasattr(field, "choices") and field.choices:
+                for value, label in field.choices:
+                    grouped_items[value] = {
+                        "label": label,
+                        "items": queryset.filter(**{group_by: value}).order_by("id"),
+                    }
+                existing_values = set(queryset.values_list(group_by, flat=True))
+                for value in existing_values:
+                    if value not in grouped_items:
+                        grouped_items[value] = {
+                            "label": f"Unknown ({value})",
+                            "items": queryset.filter(**{group_by: value}).order_by(
+                                "id"
+                            ),
+                        }
+                sorted_items = {}
+                for value, __ in field.choices:
+                    if value in grouped_items:
+                        sorted_items[value] = grouped_items[value]
+                for key, group in grouped_items.items():
+                    if key not in sorted_items:
+                        sorted_items[key] = group
+
+                for key, group in sorted_items.items():
+                    total_count = group["items"].count()
+                    ordered_items = group["items"].order_by("id")
+                    paginator = Paginator(ordered_items, paginate_by)
+                    page = self.request.GET.get(f"page_{key}", 1)
+                    try:
+                        page_obj = paginator.page(page)
+                    except PageNotAnInteger:
+                        page_obj = paginator.page(1)
+                    except EmptyPage:
+                        page_obj = paginator.page(paginator.num_pages)
+                    load_more_params = self.request.GET.copy()
+                    load_more_params["group_key"] = key
+                    load_more_params["page"] = (
+                        page_obj.next_page_number() if page_obj.has_next() else 1
+                    )
+                    app_label = self.model._meta.app_label
+                    model_name = self.model.__name__
+                    load_more_base = reverse(
+                        "horilla_generics:group_by_load_more",
+                        kwargs={"app_label": app_label, "model_name": model_name},
+                    )
+                    paginated_groups[key] = {
+                        "label": group["label"],
+                        "items": page_obj.object_list,
+                        "page_obj": page_obj,
+                        "has_next": page_obj.has_next(),
+                        "next_page": (
+                            page_obj.next_page_number() if page_obj.has_next() else None
+                        ),
+                        "total_count": total_count,
+                        "load_more_url": f"{load_more_base}?{load_more_params.urlencode()}",
+                        "data_container_id": f"{self.view_id}-{slugify(str(key))}",
+                    }
+
+            elif isinstance(field, ForeignKey):
+                queryset = queryset.prefetch_related(group_by)
+                related_model = field.related_model
+                if "order" in [f.name for f in related_model._meta.fields]:
+                    related_items = related_model.objects.all().order_by("order")
+                else:
+                    related_items = related_model.objects.all().order_by("pk")
+
+                for related_item in related_items:
+                    grouped_items[related_item.pk] = {
+                        "label": str(related_item),
+                        "items": queryset.filter(
+                            **{f"{group_by}__pk": related_item.pk}
+                        ).order_by("id"),
+                    }
+
+                if field.null:
+                    grouped_items[None] = {
+                        "label": _("None"),
+                        "items": queryset.filter(
+                            **{f"{group_by}__isnull": True}
+                        ).order_by("id"),
+                    }
+
+                if None in grouped_items and not grouped_items[None]["items"].exists():
+                    del grouped_items[None]
+
+                sorted_items = {}
+                for related_item in related_items:
+                    if related_item.pk in grouped_items:
+                        sorted_items[related_item.pk] = grouped_items[related_item.pk]
+                if None in grouped_items:
+                    sorted_items[None] = grouped_items[None]
+
+                for key, group in sorted_items.items():
+                    total_count = group["items"].count()
+                    ordered_items = group["items"].order_by("id")
+                    paginator = Paginator(ordered_items, paginate_by)
+                    page = self.request.GET.get(f"page_{key}", 1)
+                    try:
+                        page_obj = paginator.page(page)
+                    except PageNotAnInteger:
+                        page_obj = paginator.page(1)
+                    except EmptyPage:
+                        page_obj = paginator.page(paginator.num_pages)
+                    load_more_params = self.request.GET.copy()
+                    load_more_params["group_key"] = key
+                    load_more_params["page"] = (
+                        page_obj.next_page_number() if page_obj.has_next() else 1
+                    )
+                    app_label = self.model._meta.app_label
+                    model_name = self.model.__name__
+                    load_more_base = reverse(
+                        "horilla_generics:group_by_load_more",
+                        kwargs={"app_label": app_label, "model_name": model_name},
+                    )
+                    paginated_groups[key] = {
+                        "label": group["label"],
+                        "items": page_obj.object_list,
+                        "page_obj": page_obj,
+                        "has_next": page_obj.has_next(),
+                        "next_page": (
+                            page_obj.next_page_number() if page_obj.has_next() else None
+                        ),
+                        "total_count": total_count,
+                        "load_more_url": f"{load_more_base}?{load_more_params.urlencode()}",
+                        "data_container_id": f"{self.view_id}-{slugify(str(key))}",
+                    }
+
+            context["grouped_items"] = paginated_groups
+            context["group_by_field"] = group_by
+            context["group_by_label"] = field.verbose_name
+            context["queryset"] = queryset
+            context["total_records_count"] = queryset.count()
+
+        except FieldError as e:
+            context["error"] = _("Invalid grouping field '%(field)s': %(err)s") % {
+                "field": group_by,
+                "err": str(e),
+            }
+        except Exception as e:
+            context["error"] = _("Error grouping by field '%(field)s': %(err)s") % {
+                "field": group_by,
+                "err": str(e),
+            }
+        return context
+
+    def load_more_items(self, request, *args, **kwargs):
+        """
+        Load more items for a specific group with filters and search applied.
+        Returns table rows (tr elements) for the next page of the group.
+        """
+        group_key = request.GET.get("group_key")
+        page = request.GET.get("page")
+        group_by = self.get_group_by_field()
+
+        if not page or not group_by:
+            return HttpResponse(status=400, content="Missing required parameters")
+
+        try:
+            field = self.model._meta.get_field(group_by)
+            if group_key == "None":
+                group_key = None
+            elif isinstance(field, ForeignKey) and group_key and group_key.isdigit():
+                group_key = int(group_key)
+
+            queryset = self.get_queryset()
+
+            if hasattr(field, "choices") and field.choices:
+                items = queryset.filter(**{group_by: group_key}).order_by("id")
+            elif isinstance(field, ForeignKey):
+                if group_key is None:
+                    items = queryset.filter(**{f"{group_by}__isnull": True}).order_by(
+                        "id"
+                    )
+                else:
+                    items = queryset.filter(**{f"{group_by}__pk": group_key}).order_by(
+                        "id"
+                    )
+            else:
+                return HttpResponse(status=400, content="Invalid group field")
+
+            paginate_by = getattr(self, "paginate_by", 20)
+            paginator = Paginator(items, paginate_by)
+            try:
+                page_obj = paginator.page(page)
+            except PageNotAnInteger:
+                page_obj = paginator.page(1)
+            except EmptyPage:
+                return HttpResponse("")
+
+            context = self.get_context_data()
+            context["queryset"] = page_obj.object_list
+            context["has_next"] = page_obj.has_next()
+            context["next_page"] = (
+                page_obj.next_page_number() if page_obj.has_next() else None
+            )
+            context["group_key"] = group_key
+            context["data_container_id"] = (
+                f"{self.get_view_id()}-{slugify(str(group_key))}"
+            )
+            load_more_params = request.GET.copy()
+            load_more_params["group_key"] = group_key
+            load_more_params["page"] = (
+                page_obj.next_page_number() if page_obj.has_next() else 1
+            )
+            app_label = self.model._meta.app_label
+            model_name = self.model.__name__
+            load_more_base = reverse(
+                "horilla_generics:group_by_load_more",
+                kwargs={"app_label": app_label, "model_name": model_name},
+            )
+            context["group_by_load_more_url"] = (
+                f"{load_more_base}?{load_more_params.urlencode()}"
+            )
+            context["search_params"] = request.GET.urlencode()
+
+            return HttpResponse(
+                render_to_string(
+                    "partials/group_by_load_more_rows.html", context, request=request
+                )
+            )
+        except Exception as e:
+            logger.error("Group by load more failed: %s", str(e))
+            return HttpResponse(status=500, content=f"Error: {str(e)}")
+
+    def get_view_id(self):
+        """Return the view_id for this view."""
+        return getattr(self, "view_id", "group-by-view")
+
+    def render_to_response(self, context, **response_kwargs):
+        """Override to ensure HTMX requests get the group_by template."""
+        is_htmx = self.request.headers.get("HX-Request") == "true"
+        context["request_params"] = self.request.GET.copy()
+        if is_htmx:
+            return render(self.request, self.template_name, context)
+        return super().render_to_response(context, **response_kwargs)
+
+
 class HorillaDetailView(DetailView):
     """Generic detail view for displaying individual model instances."""
 
     template_name = "detail_view.html"
     context_object_name = "obj"
     body: list = []
-    excluded_fields = []
+    header_fields: list = (
+        []
+    )  # Fields shown in header (e.g. title). If empty, first body field is used.
+    base_excluded_fields = [
+        "id",
+        "created_at",
+        "additional_info",
+        "updated_at",
+        "history",
+        "is_active",
+        "created_by",
+        "updated_by",
+    ]
+    excluded_fields = (
+        []
+    )  # Subclass: add more field names to exclude (extends base_excluded_fields).
     pipeline_field = ""
     breadcrumbs = []
     actions = []
@@ -4163,33 +4698,67 @@ class HorillaDetailView(DetailView):
             raise HorillaHttp404("Model not found")
         return super().get_queryset()
 
-    def get_body(self):
-        """Return a normalized list of (verbose_name, field_name) pairs."""
-        normalized_body = []
-        if not self.body:
-            return normalized_body
-
+    def _normalize_field_list(self, field_list, exclude_set):
+        """Normalize a list of fields to (verbose_name, field_name) and filter by permissions and excluded_fields.
+        Always resolves verbose_name from the model so translations work in the current request language.
+        """
+        if not field_list:
+            return []
         field_permissions = get_field_permissions_for_model(
             self.request.user, self.model
         )
-
         instance = self.model()
-        for field in self.body:
-            field_name = field[1] if isinstance(field, tuple) else field
-
+        result = []
+        for field in field_list:
+            field_name = (
+                field[1]
+                if isinstance(field, (list, tuple)) and len(field) >= 2
+                else field
+            )
+            if field_name in exclude_set:
+                continue
             field_perm = field_permissions.get(field_name, "readwrite")
             if field_perm == "hidden":
                 continue
+            try:
+                model_field = instance._meta.get_field(field_name)
+                result.append((model_field.verbose_name, field_name))
+            except FieldDoesNotExist:
+                pass
+        return result
 
-            if isinstance(field, tuple):
-                normalized_body.append(field)
-            else:
-                try:
-                    model_field = instance._meta.get_field(field)
-                    normalized_body.append((model_field.verbose_name, field))
-                except FieldDoesNotExist:
-                    pass
-        return normalized_body
+    def get_excluded_fields(self):
+        """Return effective excluded fields: base list plus any extra from subclasses."""
+        base = list(self.base_excluded_fields)
+        extra = [f for f in (self.excluded_fields or []) if f not in base]
+        return base + extra
+
+    def get_header_fields(self):
+        """Return normalized (verbose_name, field_name) list for header. Excluded fields are omitted."""
+        excluded_set = set(self.get_excluded_fields())
+        if self.header_fields:
+            return self._normalize_field_list(self.header_fields, excluded_set)
+        full_body = self._normalize_field_list(self.body, excluded_set)
+        return [full_body[0]] if full_body else []
+
+    def get_body(self):
+        """Return normalized (verbose_name, field_name) list for details grid. Excluded fields are omitted."""
+        excluded_set = set(self.get_excluded_fields())
+        url = resolve(self.request.path)
+        url_name = url.url_name if url else ""
+        visibility = DetailFieldVisibility.all_objects.filter(
+            user=self.request.user,
+            app_label=self.model._meta.app_label,
+            model_name=self.model._meta.model_name,
+            url_name=url_name,
+        ).first()
+        if visibility and visibility.header_fields:
+            return self._normalize_field_list(visibility.header_fields, excluded_set)
+        full_body = self._normalize_field_list(self.body, excluded_set)
+        if self.header_fields:
+            return full_body
+        # Return full body so body[0]=title (heading), body[1:]=first_name,last_name... (grid)
+        return full_body
 
     def check_update_permission(self):
         """
@@ -4232,6 +4801,18 @@ class HorillaDetailView(DetailView):
             return True
 
         return False
+
+    def _get_effective_pipeline_field(self):
+        """
+        Return pipeline_field only if the user has permission to see it (not "Don't Show").
+        Returns None if the field is hidden for the current user.
+        """
+        if not self.pipeline_field:
+            return None
+        visible = filter_hidden_fields(
+            self.request.user, self.model, [self.pipeline_field]
+        )
+        return self.pipeline_field if self.pipeline_field in visible else None
 
     def get_pipeline_choices(self):
         """
@@ -4360,8 +4941,41 @@ class HorillaDetailView(DetailView):
 
         return badges
 
+    def _get_details_section_url_for_fields(self, object_id):
+        """
+        Infer the details section URL name from the tab view (when tab_url is set)
+        so the Fields modal uses the same visible/excluded fields as the Details tab.
+        Returns the URL name (e.g. "leads:leads_details_tab") or None.
+        """
+        from types import SimpleNamespace
+
+        tab_url = getattr(self, "tab_url", None)
+        if not tab_url:
+            return None
+        try:
+            path = str(tab_url)
+            resolved = resolve(path)
+            tab_view_class = getattr(resolved.func, "view_class", None)
+            if not tab_view_class:
+                return None
+            # Tab view subclasses set self.urls in __init__ using request from _thread_local.
+            # Minimal request must have .GET and .user so HorillaDetailTabView.__init__ does not raise.
+            q = QueryDict(mutable=True)
+            q.setlist("object_id", [str(object_id)])
+            req = SimpleNamespace(GET=q, user=getattr(self.request, "user", None))
+            saved_request = getattr(_thread_local, "request", None)
+            try:
+                _thread_local.request = req
+                view_inst = tab_view_class()
+                return (getattr(view_inst, "urls", None) or {}).get("details")
+            finally:
+                _thread_local.request = saved_request
+        except Exception:
+            return None
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["header_fields"] = self.get_header_fields()
         context["body"] = self.get_body()
         context["pipeline_choices"] = self.get_pipeline_choices()
         current_obj = self.get_object()
@@ -4420,6 +5034,23 @@ class HorillaDetailView(DetailView):
         context["url_name"] = url.url_name
         context["app_label"] = self.model._meta.app_label
 
+        # Pass "Change Fields" URL for visible button when detail view has tab/sections
+        # (button shown in marked area, not in dropdown)
+        detail_actions = self.actions
+        if self.tab_url:
+            change_fields_url = (
+                f"{reverse('horilla_generics:detail_field_selector')}"
+                f"?app_label={self.model._meta.app_label}&model_name={self.model._meta.model_name}&url_name={url.url_name}"
+            )
+            # Infer details section URL from tab view so Fields modal uses same
+            # excluded/visible fields as the Details tab (no need for details_section_url_name on child).
+            details_section_url = self._get_details_section_url_for_fields(current_id)
+            if details_section_url:
+                change_fields_url += (
+                    f"&details_section_url={quote(details_section_url)}"
+                )
+            context["change_fields_url"] = change_fields_url
+
         # Session keys for storing breadcrumb state
         breadcrumbs_session_key = (
             f"detail_view_breadcrumbs_{self.model._meta.model_name}_{current_id}"
@@ -4445,12 +5076,13 @@ class HorillaDetailView(DetailView):
                 )
                 breadcrumbs_for_context.append((current_obj, None))
                 context["breadcrumbs"] = breadcrumbs_for_context
-                context["actions"] = self.actions
+                context["actions"] = detail_actions
                 context["model_name"] = self.model._meta.model_name
-                if self.pipeline_field:
-                    context["pipeline_field"] = self.pipeline_field
+                effective_pf = self._get_effective_pipeline_field()
+                if effective_pf:
+                    context["pipeline_field"] = effective_pf
                     context["pipeline_field_verbose_name"] = self.model._meta.get_field(
-                        self.pipeline_field
+                        effective_pf
                     ).verbose_name
                 return context
 
@@ -4611,12 +5243,13 @@ class HorillaDetailView(DetailView):
         self.request.session[breadcrumbs_session_key] = serializable_breadcrumbs
 
         context["breadcrumbs"] = dynamic_breadcrumbs
-        context["actions"] = self.actions
+        context["actions"] = detail_actions
         context["model_name"] = self.model._meta.model_name
-        if self.pipeline_field:
-            context["pipeline_field"] = self.pipeline_field
+        effective_pf = self._get_effective_pipeline_field()
+        if effective_pf:
+            context["pipeline_field"] = effective_pf
             context["pipeline_field_verbose_name"] = self.model._meta.get_field(
-                self.pipeline_field
+                effective_pf
             ).verbose_name
         return context
 
@@ -4800,11 +5433,17 @@ class HorillaDetailTabView(HorillaTabView):
         self.tabs = []
         if self.object_id:
             if "details" in self.urls:
-                details_url = (
-                    f"{reverse_lazy(self.urls['details'], kwargs={'pk': self.object_id})}?pipeline_field={pipeline_field}"
-                    if pipeline_field
-                    else reverse(self.urls["details"], kwargs={"pk": self.object_id})
+                detail_url_name = self.request.GET.get("detail_url_name", "")
+                details_url = reverse(
+                    self.urls["details"], kwargs={"pk": self.object_id}
                 )
+                params = []
+                if pipeline_field:
+                    params.append(f"pipeline_field={pipeline_field}")
+                if detail_url_name:
+                    params.append(f"detail_url_name={detail_url_name}")
+                if params:
+                    details_url = f"{details_url}?{'&'.join(params)}"
                 self.tabs.append(
                     {
                         "title": _("Details"),
@@ -4873,17 +5512,15 @@ class HorillaDetailSectionView(DetailView):
     body = []
     edit_field = True
     non_editable_fields = []
-    excluded_fields = [
-        "id",
-        "created_at",
-        "additional_info",
-        "updated_at",
-        "history",
-        "is_active",
-        "created_by",
-        "updated_by",
-    ]
+    base_excluded_fields = HorillaDetailView.base_excluded_fields
+    excluded_fields = []
     include_fields = []
+
+    def get_excluded_fields(self):
+        """Return effective excluded fields: base list plus any extra from subclasses."""
+        base = list(self.base_excluded_fields)
+        extra = [f for f in (self.excluded_fields or []) if f not in base]
+        return base + extra
 
     def check_object_permission(self, request, obj):
         """
@@ -4945,7 +5582,7 @@ class HorillaDetailSectionView(DetailView):
         Dynamically generate body based on model fields.
         Exclude fields like 'id' or others you don't want to display.
         """
-        excluded_fields = self.excluded_fields
+        excluded_fields = list(self.get_excluded_fields())
         pipeline_field = self.request.GET.get("pipeline_field")
         if pipeline_field:
             excluded_fields.append(pipeline_field)
@@ -4966,7 +5603,25 @@ class HorillaDetailSectionView(DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["body"] = self.body or self.get_default_body()
+        body = self.body or self.get_default_body()
+        detail_url_name = self.request.GET.get("detail_url_name")
+        if detail_url_name:
+            visibility = DetailFieldVisibility.all_objects.filter(
+                user=self.request.user,
+                app_label=self.model._meta.app_label,
+                model_name=self.model._meta.model_name,
+                url_name=detail_url_name,
+            ).first()
+            if visibility and visibility.details_fields:
+                body = []
+                for f in visibility.details_fields:
+                    fn = f[1] if isinstance(f, (list, tuple)) and len(f) >= 2 else f
+                    try:
+                        mf = self.model._meta.get_field(str(fn))
+                        body.append((mf.verbose_name, str(fn)))
+                    except FieldDoesNotExist:
+                        pass
+        context["body"] = body
         context["model_name"] = self.model._meta.model_name
         context["app_label"] = self.model._meta.app_label
         context["edit_field"] = self.edit_field
@@ -8172,6 +8827,12 @@ class HorillaSingleFormView(FormView):
         context["full_width_fields"] = self.full_width_fields or []
         context["condition_fields"] = self.condition_fields or []
         context["condition_fields_tiltle"] = self.condition_field_title
+        context["condition_model_str"] = ""
+        if getattr(self, "condition_model", None):
+            context["condition_model_str"] = (
+                f"{self.condition_model._meta.app_label}."
+                f"{self.condition_model._meta.model_name}"
+            )
         context["form_url"] = self.get_form_url()
         context["add_condition_url"] = (
             self.get_add_condition_url() if self.condition_fields else None
