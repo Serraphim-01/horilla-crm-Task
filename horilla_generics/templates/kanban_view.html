@@ -36,7 +36,11 @@
         click
     </button>
 
-    {% if queryset %}
+    {% if error %}
+        <div class="p-4 mb-4 text-sm text-red-600 bg-red-50 rounded-lg text-center">
+            {{ error }}
+        </div>
+    {% elif queryset %}
         <div id="kanbanview" data-app-label="{{ app_label }}"
             data-model-name="{{ model_name }}" data-csrf-token="{{ csrf_token }}"
             data-allow-column-reorder="{% if allow_column_reorder %}true{% else %}false{% endif %}"
