@@ -28,6 +28,7 @@ from horilla_core.models import Company, Department, MultipleCurrency, Role
 from horilla_generics.mixins import RecentlyViewedMixin
 from horilla_generics.views import (
     HorillaDetailView,
+    HorillaGroupByView,
     HorillaKanbanView,
     HorillaListView,
     HorillaMultiStepFormView,
@@ -47,6 +48,7 @@ class UserView(LoginRequiredMixin, HorillaView):
     nav_url = reverse_lazy("horilla_core:user_nav_view")
     list_url = reverse_lazy("horilla_core:user_list_view")
     kanban_url = reverse_lazy("horilla_core:user_kanban_view")
+    group_by_url = reverse_lazy("horilla_core:user_group_by_view")
 
 
 @method_decorator(htmx_required, name="dispatch")
@@ -67,8 +69,7 @@ class UserNavbar(LoginRequiredMixin, HorillaNavView):
     model_name = str(User.__name__)
     model_app_label = str(User._meta.app_label)
     nav_width = False
-    gap_enabled = False
-    exclude_kanban_fields = "country"
+    group_by_url = reverse_lazy("horilla_core:user_group_by_view")
     column_selector_exclude_fields = [
         "password",
         "last_login",
@@ -264,6 +265,76 @@ class UserKanbanView(LoginRequiredMixin, HorillaKanbanView):
     ]
 
     actions = UserListView.actions
+
+
+@method_decorator(htmx_required, name="dispatch")
+@method_decorator(
+    permission_required_or_denied(
+        f"{User._meta.app_label}.view_{User._meta.model_name}"
+    ),
+    name="dispatch",
+)
+class UserGroupByView(LoginRequiredMixin, HorillaGroupByView):
+    """
+    Lead Group By view
+    """
+
+    model = User
+    view_id = "user-group-by"
+    filterset_class = UserFilter
+    search_url = reverse_lazy("horilla_core:user_list_view")
+    enable_quick_filters = True
+    main_url = reverse_lazy("horilla_core:user_view")
+    group_by_field = "department"
+
+    columns = [
+        (_("Name"), "get_avatar_with_name"),
+        "email",
+        "state",
+        "country",
+        "contact_number",
+        "role",
+    ]
+    actions = UserListView.actions
+
+    @cached_property
+    def col_attrs(self):
+        """
+        Get the column attributes for the list view.
+        """
+        query_params = self.request.GET.dict()
+        query_params = {}
+        if "section" in self.request.GET:
+            query_params["section"] = self.request.GET.get("section")
+        query_string = urlencode(query_params)
+        attrs = {
+            "hx-get": f"{{get_detail_view_url}}?{query_string}",
+            "hx-target": "#users-view",
+            "hx-swap": "innerHTML",
+            "hx-push-url": "true",
+            "hx-select": "#users-view",
+            "permission": f"{User._meta.app_label}.view_{User._meta.model_name}",
+        }
+        return [
+            {
+                "get_avatar_with_name": {
+                    **attrs,
+                }
+            }
+        ]
+
+    def no_record_add_button(self):
+        """
+        Get the configuration for the "Add" button when no record exist.
+        """
+        if self.request.user.has_perm(
+            f"{User._meta.app_label}.add_{User._meta.model_name}"
+        ):
+            return {
+                "url": f"""{ reverse_lazy('horilla_core:user_create_form')}?new=true""",
+                "attrs": 'id="user-create"',
+            }
+        return None
 
 
 @method_decorator(htmx_required, name="dispatch")
