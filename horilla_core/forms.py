@@ -599,6 +599,19 @@ class BusinessHourForm(HorillaModelForm):
     def clean(self):
         cleaned_data = super().clean()
 
+        if "week_days" in self.errors:
+            choices = self.fields["week_days"].choices
+            valid = [c[0] for c in choices]
+            label_to_value = {str(c[1]): c[0] for c in choices}
+            values = cleaned_data.get("week_days")
+            if not isinstance(values, list):
+                values = self.data.getlist("week_days") if self.data else []
+
+            values = [label_to_value.get(v, v) for v in values]
+            if values and all(v in valid for v in values):
+                del self.errors["week_days"]
+                cleaned_data["week_days"] = values
+
         def clear_fields(field_list):
             for field in field_list:
                 cleaned_data[field] = None
@@ -618,7 +631,8 @@ class BusinessHourForm(HorillaModelForm):
             ]
 
         if cleaned_data.get("business_hour_type") == "24_5":
-            if len(cleaned_data.get("week_days")) > 5:
+            week_days = cleaned_data.get("week_days") or []
+            if len(week_days) > 5:
                 self.add_error(
                     "week_days",
                     _("You can select a maximum of 5 days for 24×5 business hours."),
