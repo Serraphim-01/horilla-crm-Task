@@ -47,11 +47,15 @@ def is_login_icon(self):
     if self.is_logged_in:
         # Green check icon
         return format_html(
-            '<span class="flex justify-center items-center inline-block text-green-600"><i class="fas fa-check-circle fa-lg"></i></span>'
+            '<span class="flex justify-center items-center inline-block text-green-600">'
+            '<i class="{}"></i></span>',
+            "fas fa-check-circle fa-lg",
         )
     # Red cross icon
     return format_html(
-        '<span class=" flex justify-center items-center inline-block text-red-600"><i class="fas fa-times-circle fa-lg"></i></span>'
+        '<span class=" flex justify-center items-center inline-block text-red-600">'
+        '<i class="{}"></i></span>',
+        "fas fa-times-circle fa-lg",
     )
 
 
