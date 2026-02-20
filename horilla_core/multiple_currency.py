@@ -730,7 +730,7 @@ class CurrencyDeleteView(LoginRequiredMixin, HorillaSingleDeleteView):
         if self.object.is_default:
             messages.error(self.request, "Default Currency can not delete")
             response = HttpResponse(
-                "<script>$('#reloadButton').click();closeModal();</script>"
+                "<script>$('#reloadCurrencyButton').click();closeModal();</script>"
             )
             response["HX-Retarget"] = "#currency-list-view"
             return response
@@ -738,5 +738,5 @@ class CurrencyDeleteView(LoginRequiredMixin, HorillaSingleDeleteView):
 
     def get_post_delete_response(self):
         return HttpResponse(
-            "<script>$('#reloadButton').click();closeDeleteModeModal();</script>"
+            "<script>$('#reloadCurrencyButton').click();closeDeleteModeModal();</script>"
         )

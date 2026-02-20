@@ -1,5 +1,9 @@
 {% load static %}{% load i18n %}{% load horilla_tags %}
 <div id="currency-view-container" class="ps-3" >
+    <button id="reloadCurrencyButton" hidden
+        hx-get="{% url 'horilla_core:multiple_currency' %}?{{ request.GET.urlencode }}"
+        hx-target="#inner-tab-currency-view-content"
+        hx-swap="innerHTML">reload</button>
 
   {% if not has_company %}
     <div class="flex justify-between items-center h-20">
