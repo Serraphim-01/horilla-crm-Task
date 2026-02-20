@@ -42,7 +42,13 @@ class LeadStatus(HorillaCoreModel):
 
     name = models.CharField(max_length=100, verbose_name=_("Status Name"))
     order = models.IntegerField(default=0, verbose_name=_("Status Order"))
-    color = ColorField(default="#f39022", verbose_name=_("Status Color"))
+    color = ColorField(
+        default=None,
+        null=True,
+        blank=True,
+        verbose_name=_("Status Color"),
+        help_text=_("Leave blank for default (primary theme colour)."),
+    )
     is_final = models.BooleanField(default=False, verbose_name=_("Is Final Stage"))
     probability = models.DecimalField(
         max_digits=5,
@@ -301,6 +307,16 @@ class Lead(HorillaCoreModel):
 
     def __str__(self):
         return f"{str(self.title)}-{self.id}"
+
+    def save(self, *args, **kwargs):
+        """
+        Override save method to auto-generate title if not provided
+        """
+        if not self.title:
+            owner_name = getattr(self.lead_owner, "username", str(self.lead_owner))
+            self.title = f"{self.lead_company}/{self.first_name}/{owner_name}"
+
+        super().save(*args, **kwargs)
 
     DYNAMIC_METHODS = ["get_edit_url"]
     # Get field details

@@ -14,6 +14,7 @@ urlpatterns = [
     path("leads-list/", views.LeadListView.as_view(), name="leads_list"),
     path("leads-delete/<int:pk>/", views.LeadDeleteView.as_view(), name="leads_delete"),
     path("leads-kanban/", views.LeadKanbanView.as_view(), name="leads_kanban"),
+    path("leads-group-by/", views.LeadGroupByView.as_view(), name="leads_group_by"),
     path("leads-create/", views.LeadFormView.as_view(), name="leads_create"),
     path("leads-detail/<int:pk>/", views.LeadDetailView.as_view(), name="leads_detail"),
     path(
