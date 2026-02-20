@@ -22,10 +22,12 @@ from django.db import transaction
 from django.db.models import Q
 from django.db.models.signals import post_delete, post_migrate, post_save
 from django.dispatch import Signal, receiver
+from django.utils.encoding import force_str
 
 from horilla.auth.models import User
 from horilla_core.models import (
     Company,
+    DetailFieldVisibility,
     FieldPermission,
     FiscalYear,
     ListColumnVisibility,
@@ -356,7 +358,10 @@ def clear_column_visibility_cache_on_permission_change(sender, instance, **kwarg
             affected_users = []
             if instance.user:
                 affected_users = [instance.user]
-            elif instance.role:
+            elif instance.role_id and instance.role and instance.role.pk:
+                # Only access role.users when the Role is persisted (has pk);
+                # unsaved Role instances raise "needs to have a primary key value
+                # before this relationship can be used" when accessing .users
                 affected_users = list(instance.role.users.all())
 
             # Get the permission type (if it's a save, check the new permission; if delete, field is now visible)
@@ -464,93 +469,11 @@ def clear_column_visibility_cache_on_permission_change(sender, instance, **kwarg
                                 ]
                             )
 
-                    # If field is now visible (not hidden), ensure it's available and re-add if it was previously visible
+                    # If field is now visible (not hidden), only remove from removed_custom_fields if present.
+                    # Do NOT add to visible_fields - that causes all model fields to be added when bulk
+                    # permission save triggers the signal for every field. Only remove columns when hidden.
                     elif current_permission != "hidden":
-
-                        # Get the model's default fields to check if this is a standard field
                         try:
-                            from django.db.models import Field as ModelField
-                            from django.utils.encoding import force_str
-
-                            model_instance = model()
-                            model_fields = [
-                                [
-                                    force_str(f.verbose_name or f.name.title()),
-                                    (
-                                        f.name
-                                        if not getattr(f, "choices", None)
-                                        else f"get_{f.name}_display"
-                                    ),
-                                ]
-                                for f in model._meta.get_fields()
-                                if isinstance(f, ModelField)
-                                and f.name not in ["history"]
-                            ]
-
-                            # Check if model has a columns property
-                            default_fields = (
-                                getattr(model_instance, "columns", model_fields)
-                                if hasattr(model_instance, "columns")
-                                else model_fields
-                            )
-
-                            # Find the field in default fields (check both field_name and get_*_display)
-                            field_to_add = None
-                            for default_field in default_fields:
-                                if (
-                                    isinstance(default_field, (list, tuple))
-                                    and len(default_field) >= 2
-                                ):
-                                    default_field_name = default_field[1]
-                                    default_verbose_name = default_field[0]
-
-                                    # Check if this default field matches our field
-                                    field_matches = (
-                                        default_field_name == field_name
-                                        or default_field_name
-                                        == f"get_{field_name}_display"
-                                        or (
-                                            default_field_name.startswith("get_")
-                                            and default_field_name.endswith("_display")
-                                            and default_field_name.replace(
-                                                "get_", ""
-                                            ).replace("_display", "")
-                                            == field_name
-                                        )
-                                    )
-
-                                    if field_matches:
-                                        field_to_add = [
-                                            default_verbose_name,
-                                            default_field_name,
-                                        ]
-                                        break
-
-                            # If field is in default fields and not in visible_fields, add it back
-                            if field_to_add:
-                                current_visible_fields = (
-                                    entry.visible_fields.copy()
-                                    if entry.visible_fields
-                                    else []
-                                )
-                                field_already_in_visible = any(
-                                    (
-                                        isinstance(item, (list, tuple))
-                                        and len(item) >= 2
-                                        and item[1] == field_to_add[1]
-                                    )
-                                    or (
-                                        not isinstance(item, (list, tuple))
-                                        and item == field_to_add[1]
-                                    )
-                                    for item in current_visible_fields
-                                )
-
-                                if not field_already_in_visible:
-                                    current_visible_fields.append(field_to_add)
-                                    entry.visible_fields = current_visible_fields
-                                    updated = True
-
                             # Remove from removed_custom_fields if it's there
                             original_removed_fields = (
                                 entry.removed_custom_fields.copy()
@@ -589,21 +512,234 @@ def clear_column_visibility_cache_on_permission_change(sender, instance, **kwarg
 
                             if updated:
                                 entry.removed_custom_fields = updated_removed_fields
-                                entry.save(
-                                    update_fields=[
-                                        "visible_fields",
-                                        "removed_custom_fields",
-                                    ]
-                                )
+                                entry.save(update_fields=["removed_custom_fields"])
                         except Exception as e:
                             logger.error(
-                                "Error checking default fields for re-adding: %s",
+                                "Error updating removed_custom_fields on permission change: %s",
                                 e,
                             )
 
                     # Clear cache for this entry
                     cache_key = f"visible_columns_{entry.user.id}_{entry.app_label}_{entry.model_name}_{entry.context}_{entry.url_name}"
                     cache.delete(cache_key)
+
+                # Update DetailFieldVisibility: remove hidden fields from header_fields and details_fields
+                meta_model_name = getattr(model._meta, "model_name", model_name.lower())
+                detail_visibility_entries = DetailFieldVisibility.all_objects.filter(
+                    user=user, app_label=app_label
+                ).filter(Q(model_name=model_name) | Q(model_name=meta_model_name))
+                current_permission = get_user_field_permission(user, model, field_name)
+                if current_permission == "hidden":
+                    for detail_entry in detail_visibility_entries:
+
+                        def _remove_field_from_list(field_list):
+                            if not field_list:
+                                return field_list, False
+                            result = []
+                            changed = False
+                            for item in field_list:
+                                fn = (
+                                    item[1]
+                                    if isinstance(item, (list, tuple))
+                                    and len(item) >= 2
+                                    else item
+                                )
+                                if fn == field_name:
+                                    changed = True
+                                    continue
+                                if (
+                                    isinstance(fn, str)
+                                    and fn.startswith("get_")
+                                    and fn.endswith("_display")
+                                    and fn.replace("get_", "").replace("_display", "")
+                                    == field_name
+                                ):
+                                    changed = True
+                                    continue
+                                result.append(item)
+                            return result, changed
+
+                        new_header, hdr_changed = _remove_field_from_list(
+                            detail_entry.header_fields or []
+                        )
+                        new_details, det_changed = _remove_field_from_list(
+                            detail_entry.details_fields or []
+                        )
+                        if hdr_changed or det_changed:
+                            detail_entry.header_fields = new_header
+                            detail_entry.details_fields = new_details
+                            detail_entry.save(
+                                update_fields=["header_fields", "details_fields"]
+                            )
+
+                # When field becomes visible again, re-add to DetailFieldVisibility
+                # so it shows in the detail column visibility "Add field" lists
+                elif current_permission != "hidden":
+                    try:
+                        # Get excluded fields from detail view (must not add excluded columns)
+                        details_excluded = set()
+                        try:
+                            from horilla_generics.views import HorillaDetailView
+
+                            detail_view_class = HorillaDetailView._view_registry.get(
+                                model
+                            )
+                            if detail_view_class:
+                                base = getattr(
+                                    detail_view_class, "base_excluded_fields", None
+                                )
+                                extra = (
+                                    getattr(detail_view_class, "excluded_fields", [])
+                                    or []
+                                )
+                                if base is not None:
+                                    details_excluded = set(base) | set(extra)
+                                else:
+                                    details_excluded = set(extra)
+                                pf = getattr(detail_view_class, "pipeline_field", None)
+                                if pf:
+                                    details_excluded.add(str(pf))
+                                # Also include details_excluded_fields if defined
+                                details_override = getattr(
+                                    detail_view_class, "details_excluded_fields", None
+                                )
+                                if details_override is not None:
+                                    details_excluded.update(details_override)
+                            else:
+                                details_excluded = {
+                                    "id",
+                                    "created_at",
+                                    "updated_at",
+                                    "history",
+                                    "is_active",
+                                    "additional_info",
+                                    "created_by",
+                                    "updated_by",
+                                }
+                        except Exception:
+                            details_excluded = {
+                                "id",
+                                "created_at",
+                                "updated_at",
+                                "history",
+                                "is_active",
+                                "additional_info",
+                                "created_by",
+                                "updated_by",
+                            }
+
+                        if field_name not in details_excluded:
+                            # Build field entry [verbose_name, field_name]
+                            try:
+                                mf = model._meta.get_field(field_name)
+                                verbose_name = force_str(
+                                    getattr(
+                                        mf, "verbose_name", field_name.replace("_", " ")
+                                    )
+                                )
+                                fn = (
+                                    f"get_{field_name}_display"
+                                    if getattr(mf, "choices", None)
+                                    else field_name
+                                )
+                            except Exception:
+                                verbose_name = field_name.replace("_", " ").title()
+                                fn = field_name
+                            field_entry = [verbose_name, fn]
+
+                            def _base_field_name(fn):
+                                if (
+                                    isinstance(fn, str)
+                                    and fn.startswith("get_")
+                                    and fn.endswith("_display")
+                                ):
+                                    return fn.replace("get_", "").replace(
+                                        "_display", ""
+                                    )
+                                return fn
+
+                            # Determine where field belongs: header, details, or both
+                            add_to_header = False
+                            add_to_details = False
+                            try:
+                                from horilla_generics.horilla_support_views import (
+                                    get_detail_field_defaults_no_request,
+                                )
+
+                                default_header, default_details = (
+                                    get_detail_field_defaults_no_request(model)
+                                )
+                                field_base = _base_field_name(fn)
+                                for item in default_header or []:
+                                    existing = (
+                                        item[1]
+                                        if isinstance(item, (list, tuple))
+                                        and len(item) >= 2
+                                        else item
+                                    )
+                                    if _base_field_name(existing) == field_base:
+                                        add_to_header = True
+                                        break
+                                for item in default_details or []:
+                                    existing = (
+                                        item[1]
+                                        if isinstance(item, (list, tuple))
+                                        and len(item) >= 2
+                                        else item
+                                    )
+                                    if _base_field_name(existing) == field_base:
+                                        add_to_details = True
+                                        break
+                                if not add_to_header and not add_to_details:
+                                    add_to_details = True
+                            except Exception:
+                                add_to_details = True
+
+                            def _field_already_in_list(field_list, entry):
+                                if not field_list:
+                                    return False
+                                entry_base = _base_field_name(entry[1])
+                                for item in field_list:
+                                    existing_fn = (
+                                        item[1]
+                                        if isinstance(item, (list, tuple))
+                                        and len(item) >= 2
+                                        else item
+                                    )
+                                    if _base_field_name(existing_fn) == entry_base:
+                                        return True
+                                return False
+
+                            for detail_entry in detail_visibility_entries:
+                                updated = False
+                                header = list(detail_entry.header_fields or [])
+                                details = list(detail_entry.details_fields or [])
+
+                                if not _field_already_in_list(
+                                    header, field_entry
+                                ) and not _field_already_in_list(details, field_entry):
+                                    if add_to_header:
+                                        header.append(field_entry)
+                                        updated = True
+                                    if add_to_details:
+                                        details.append(field_entry)
+                                        updated = True
+
+                                if updated:
+                                    update_fields = []
+                                    if add_to_header:
+                                        detail_entry.header_fields = header
+                                        update_fields.append("header_fields")
+                                    if add_to_details:
+                                        detail_entry.details_fields = details
+                                        update_fields.append("details_fields")
+                                    if update_fields:
+                                        detail_entry.save(update_fields=update_fields)
+                    except Exception as e:
+                        logger.error(
+                            "Error re-adding field to detail visibility on permission change: %s",
+                            e,
+                        )
 
         except Exception as e:
             logger.error(
