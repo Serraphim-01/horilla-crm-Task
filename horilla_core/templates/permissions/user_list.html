@@ -10,7 +10,7 @@
             class="flex justify-between items-center w-full px-4 py-3 text-left text-gray-800 font-medium transition"
             hx-get="{% url 'horilla_core:load_user_permissions' user.id %}" hx-target="#accordion-content-{{ user.id }}"
             hx-swap="innerHTML" hx-trigger="doRequest" _="on click if isElementVisible(me) trigger doRequest"
-            hx-on:click="toggleAccordion(this)">
+            hx-on:click="toggleAccordionPermission(this)">
             <div class="flex gap-10 w-full font-medium text-sm">
                 {{ user.get_full_name|default:user.username }}
                 {% if user.role %}
