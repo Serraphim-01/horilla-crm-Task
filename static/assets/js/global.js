@@ -898,32 +898,26 @@ function escapeHtml(text) {
     };
     return text.replace(/[&<>"']/g, function(m) { return map[m]; });
 }
-// Track processed messages to prevent duplicates
-var processedMessages = new Set();
-
 function showMessages() {
     var messages = [];
+    var seenInBatch = new Set();
 
-    // Collect all messages first
     $("#messages-container .message").each(function () {
         var $message = $(this);
         var messageText = $message.data("message");
         var messageKey = $message.data("level") + "|" + messageText;
 
-        // Only process messages that haven't been shown yet
-        if (!processedMessages.has(messageKey)) {
+        if (!seenInBatch.has(messageKey)) {
             messages.push({
                 level: $message.data("level"),
                 text: messageText
             });
-            processedMessages.add(messageKey);
+            seenInBatch.add(messageKey);
         }
-        // Always remove the message element to prevent reprocessing
         $message.remove();
     });
 
-    // Display messages sequentially
-    let delay = 0;
+    var delay = 0;
     messages.forEach(function(msg) {
         setTimeout(function() {
             Swal.fire({
@@ -946,17 +940,6 @@ function showMessages() {
 
         delay += 4500; // 4000ms timer + 500ms gap between messages
     });
-
-    // Clean up old processed messages after 10 seconds to prevent memory leak
-    setTimeout(function() {
-        var keysToRemove = [];
-        processedMessages.forEach(function(key) {
-            keysToRemove.push(key);
-        });
-        keysToRemove.forEach(function(key) {
-            processedMessages.delete(key);
-        });
-    }, 10000);
 }
 
 
