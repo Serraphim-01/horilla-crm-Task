@@ -42,7 +42,7 @@
                                     hx-target="#deleteBox"
                                     hx-swap="innerHTML"
                                     hx-push-url="false"
-                                    hx-on::after-request="openDeleteModal();"
+                                    hx-on::after-request="openDeleteModal();">
                                     {% csrf_token %}
                                     <input type="hidden" name="record_id" value="{{ item.id }}">
                                     <input type="hidden" name="action" value="delete_all_dependencies">
@@ -70,8 +70,7 @@
                                                     hx-target="#deleteBox"
                                                     hx-swap="innerHTML"
                                                     hx-push-url="false"
-                                                    hx-on::after-request="openDeleteModal();"
-                                                    {% comment %} hx-vals='{"selected_ids": {{ selected_ids_json|safe }}, "record_id": "{{ item.id }}", "action": "delete_item_with_dependencies" ,"dep_model_name": "{{ dep.model_name }}"}'> {% endcomment %}
+                                                    hx-on::after-request="openDeleteModal();">
                                                 {% csrf_token %}
                                                 <input type="hidden" name="record_id" value="{{ item.id }}">
                                                 <input type="hidden" name="action" value="delete_item_with_dependencies">
@@ -92,7 +91,7 @@
                                                 <li>{{ record }}</li>
                                             {% endfor %}
                                             {% if dep.count > 5 %}
-                                                ass="italic">... and {{ dep.count|add:"-5" }} more</li>
+                                                <li class="italic">... and {{ dep.count|add:"-5" }} more</li>
                                             {% endif %}
                                         </ul>
                                     {% endif %}
