@@ -283,6 +283,19 @@ class HolidayForm(HorillaModelForm):
     def clean(self):
         cleaned_data = super().clean()
 
+        if "weekly_days" in self.errors:
+            choices = self.fields["weekly_days"].choices
+            valid = [c[0] for c in choices]
+            label_to_value = {str(c[1]): c[0] for c in choices}
+            values = cleaned_data.get("weekly_days")
+            if not isinstance(values, list):
+                values = self.data.getlist("weekly_days") if self.data else []
+
+            values = [label_to_value.get(v, v) for v in values]
+            if values and all(v in valid for v in values):
+                del self.errors["weekly_days"]
+                cleaned_data["weekly_days"] = values
+
         def clear_fields(field_list):
             for field in field_list:
                 if field in cleaned_data:
