@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-19 10:06+0000\n"
+"POT-Creation-Date: 2026-02-21 07:51+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -34,7 +34,8 @@ msgid "Enter email address to send test email"
 msgstr "Geben Sie die E-Mail-Adresse für den Testversand ein"
 
 msgid "Enter the email address where you want to send the test email."
-msgstr "Geben Sie die E-Mail-Adresse ein, an die Sie die Test-E-Mail senden möchten."
+msgstr ""
+"Geben Sie die E-Mail-Adresse ein, an die Sie die Test-E-Mail senden möchten."
 "Geben Sie die E-Mail-Adresse ein, an die die Test-E-Mail gesendet werden "
 "soll."
 
@@ -83,14 +84,19 @@ msgstr "E-Mail-Vorlage „{}“ erfolgreich aktualisiert."
 msgid "Mail template \"{}\" created successfully."
 msgstr "E-Mail-Vorlage „{}“ erfolgreich erstellt."
 
-msgid "Please correct the errors below."
-msgstr "Bitte korrigieren Sie die unten stehenden Fehler."
-
 msgid "Token not refreshed, Login required"
 msgstr "Token nicht aktualisiert, Anmeldung erforderlich"
 
 msgid "Token refreshed successfully"
 msgstr "Token erfolgreich aktualisiert"
+
+#, python-brace-format
+msgid "Token refresh failed: {error}. Please re-authenticate."
+msgstr "Token-Aktualisierung fehlgeschlagen: {error}. Bitte authentifizieren Sie sich erneut."
+
+#, python-brace-format
+msgid "Token refresh failed: {error}"
+msgstr "Token-Aktualisierung fehlgeschlagen: {error}"
 
 msgid "Incoming Mail Configurations"
 msgstr "Einstellungen für eingehende E-Mails"
@@ -160,9 +166,10 @@ msgid "Primary Mail Server"
 msgstr "Primärer Mail-Server"
 
 msgid "By enabling this the display name will take from who triggered the mail"
-msgstr "Wenn dies aktiviert ist, wird der Anzeigename von der Person übernommen, die die E-Mail ausgelöst hat"
-"Wenn aktiviert, wird der Anzeigename von dem Benutzer übernommen, der die E-"
-"Mail ausgelöst hat."
+msgstr ""
+"Wenn dies aktiviert ist, wird der Anzeigename von der Person übernommen, die "
+"die E-Mail ausgelöst hatWenn aktiviert, wird der Anzeigename von dem "
+"Benutzer übernommen, der die E-Mail ausgelöst hat."
 
 msgid "Email Send Timeout (seconds)"
 msgstr "E-Mail-Sende-Timeout (Sekunden)"
@@ -233,6 +240,20 @@ msgstr "Inhalt"
 msgid "When the mail should be sent (for scheduled mails)."
 msgstr "Wann die E-Mail gesendet werden soll (für geplante E-Mails)."
 
+msgid ""
+"Subject contains potentially dangerous content (XSS detected). Please remove "
+"any scripts or malicious code."
+msgstr ""
+"Der Betreff enthält potenziell gefährliche Inhalte (XSS erkannt). "
+"Bitte entfernen Sie alle Skripte oder bösartigen Code."
+
+msgid ""
+"Body contains potentially dangerous content (XSS detected). Please remove "
+"any scripts or malicious code."
+msgstr ""
+"Der Nachrichtentext enthält potenziell gefährliche Inhalte (XSS erkannt). "
+"Bitte entfernen Sie alle Skripte oder bösartigen Code."
+
 msgid "Mails"
 msgstr "E-Mails"
 
@@ -279,7 +300,8 @@ msgid "Close"
 msgstr "Schließen"
 
 msgid "Select fields to insert into your email template."
-msgstr "Wählen Sie Felder aus, die in Ihre E-Mail-Vorlage eingefügt werden sollen."
+msgstr ""
+"Wählen Sie Felder aus, die in Ihre E-Mail-Vorlage eingefügt werden sollen."
 "Wählen Sie die Felder aus, die in die E-Mail-Vorlage eingefügt werden sollen."
 
 msgid "Instance"
@@ -370,13 +392,17 @@ msgid "Cannot send email"
 msgstr "E-Mail kann nicht gesendet werden"
 
 msgid "Mail can only be sent after outgoing mail is configured."
-msgstr "E-Mail kann nur gesendet werden, nachdem ausgehende E-Mail konfiguriert wurde."
+msgstr ""
+"E-Mail kann nur gesendet werden, nachdem ausgehende E-Mail konfiguriert "
+"wurde."
 
 msgid "Configure Outgoing Mail"
 msgstr "Ausgehende E-Mail konfigurieren"
 
 msgid "Please contact your administrator to configure outgoing mail settings."
-msgstr "Bitte kontaktieren Sie Ihren Administrator, um die Einstellungen für ausgehende E-Mail zu konfigurieren."
+msgstr ""
+"Bitte kontaktieren Sie Ihren Administrator, um die Einstellungen für "
+"ausgehende E-Mail zu konfigurieren."
 
 msgid "Send Mail"
 msgstr "E-Mail senden"
@@ -401,6 +427,9 @@ msgstr "Von:"
 
 msgid "No sender configured"
 msgstr "Kein Absender konfiguriert"
+
+msgid "No subject"
+msgstr "Kein Betreff"
 
 msgid "No message content"
 msgstr "Kein Nachrichteninhalt"
@@ -442,26 +471,32 @@ msgid "Schedule"
 msgstr "Planen"
 
 msgid "Cannot send email. Outgoing mail must be configured first."
-msgstr "E-Mail kann nicht gesendet werden. Ausgehende E-Mail muss zuerst konfiguriert werden."
+msgstr ""
+"E-Mail kann nicht gesendet werden. Ausgehende E-Mail muss zuerst "
+"konfiguriert werden."
+
+msgid "To email is required"
+msgstr "E-Mail-Adresse (An) ist erforderlich"
+
+msgid "From mail configuration is required"
+msgstr "E-Mail-Konfiguration (Von) ist erforderlich"
 
 msgid ""
-"Message body contains potentially dangerous content (XSS detected). Please "
-"remove any scripts or malicious code."
+"Both model_name and object_id are required to send mail related to an object."
 msgstr ""
-"Der Nachrichtentext enthält potenziell gefährliche Inhalte (XSS erkannt). "
-"Bitte entfernen Sie alle Skripte oder bösartigen Code."
+"Sowohl model_name als auch object_id sind erforderlich, um eine E-Mail zu einem Objekt zu senden."
 
-msgid "Missing required fields: "
-msgstr "Fehlende erforderliche Felder: "
+msgid ""
+"Cannot send mail: model information is missing. Please try again from the "
+"opportunity page."
+msgstr ""
+"E-Mail kann nicht gesendet werden: Modellinformationen fehlen. Bitte versuchen Sie es erneut von der Opportunity-Seite."
 
 msgid "Failed to send mail: "
 msgstr "Fehler beim Senden der E-Mail: "
 
 msgid "Error sending mail: "
 msgstr "Fehler beim Senden der E-Mail: "
-
-msgid "No content to save as draft"
-msgstr "Kein Inhalt zum Speichern als Entwurf"
 
 msgid "Draft saved successfully"
 msgstr "Entwurf erfolgreich gespeichert"
@@ -489,15 +524,6 @@ msgstr "Geplante E-Mail nicht gefunden oder Sie haben keine Berechtigung"
 
 msgid "Mail rescheduled successfully for "
 msgstr "E-Mail erfolgreich neu geplant für "
-
-msgid "To email is required"
-msgstr "E-Mail-Adresse (An) ist erforderlich"
-
-msgid "From mail configuration is required"
-msgstr "E-Mail-Konfiguration (Von) ist erforderlich"
-
-msgid "Message body contains potentially dangerous content (XSS detected)."
-msgstr "Der Nachrichtentext enthält potenziell gefährliche Inhalte (XSS erkannt)."
 
 msgid "Invalid mail configuration selected"
 msgstr "Ungültige E-Mail-Konfiguration ausgewählt"

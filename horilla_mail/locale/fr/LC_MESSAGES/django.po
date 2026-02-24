@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-19 10:06+0000\n"
+"POT-Creation-Date: 2026-02-21 07:51+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -34,7 +34,8 @@ msgid "Enter email address to send test email"
 msgstr "Entrez l'adresse e-mail pour envoyer un e-mail de test"
 
 msgid "Enter the email address where you want to send the test email."
-msgstr "Entrez l'adresse e-mail à laquelle vous souhaitez envoyer l'e-mail de test."
+msgstr ""
+"Entrez l'adresse e-mail à laquelle vous souhaitez envoyer l'e-mail de test."
 "Entrez l'adresse e-mail à laquelle vous souhaitez envoyer l'e-mail de test."
 
 msgid "Please enter a valid email address."
@@ -49,9 +50,10 @@ msgstr ""
 "messagerie."
 
 msgid "Enter the app-specific password  for your mail account."
-msgstr "Entrez le mot de passe spécifique à l'application pour votre compte de messagerie."
+msgstr ""
 "Entrez le mot de passe spécifique à l'application pour votre compte de "
-"messagerie."
+"messagerie.Entrez le mot de passe spécifique à l'application pour votre "
+"compte de messagerie."
 
 msgid "Enter client secret"
 msgstr "Entrez le secret client"
@@ -86,14 +88,19 @@ msgstr "Le modèle de mail « {} » a été mis à jour avec succès."
 msgid "Mail template \"{}\" created successfully."
 msgstr "Le modèle de mail « {} » a été créé avec succès."
 
-msgid "Please correct the errors below."
-msgstr "Veuillez corriger les erreurs ci-dessous."
-
 msgid "Token not refreshed, Login required"
 msgstr "Jeton non actualisé, connexion requise"
 
 msgid "Token refreshed successfully"
 msgstr "Jeton actualisé avec succès"
+
+#, python-brace-format
+msgid "Token refresh failed: {error}. Please re-authenticate."
+msgstr "Échec du renouvellement du jeton : {error}. Veuillez vous authentifier à nouveau."
+
+#, python-brace-format
+msgid "Token refresh failed: {error}"
+msgstr "Échec du renouvellement du jeton : {error}"
 
 msgid "Incoming Mail Configurations"
 msgstr "Configurations du courrier entrant"
@@ -163,9 +170,10 @@ msgid "Primary Mail Server"
 msgstr "Serveur de mail principal"
 
 msgid "By enabling this the display name will take from who triggered the mail"
-msgstr "En activant cette option, le nom d'affichage sera pris de la personne qui a déclenché le mail"
-"En activant cela, le nom affiché sera celui de l'utilisateur ayant déclenché "
-"le mail"
+msgstr ""
+"En activant cette option, le nom d'affichage sera pris de la personne qui a "
+"déclenché le mailEn activant cela, le nom affiché sera celui de "
+"l'utilisateur ayant déclenché le mail"
 
 msgid "Email Send Timeout (seconds)"
 msgstr "Délai d'envoi de mail (secondes)"
@@ -235,6 +243,20 @@ msgstr "Corps du message"
 
 msgid "When the mail should be sent (for scheduled mails)."
 msgstr "Quand le mail doit être envoyé (pour les mails planifiés)."
+
+msgid ""
+"Subject contains potentially dangerous content (XSS detected). Please remove "
+"any scripts or malicious code."
+msgstr ""
+"L'objet contient un contenu potentiellement dangereux (XSS détecté). "
+"Veuillez supprimer tous les scripts ou codes malveillants."
+
+msgid ""
+"Body contains potentially dangerous content (XSS detected). Please remove "
+"any scripts or malicious code."
+msgstr ""
+"Le corps du message contient un contenu potentiellement dangereux (XSS "
+"détecté). Veuillez supprimer tous les scripts ou codes malveillants."
 
 msgid "Mails"
 msgstr "Mails"
@@ -337,7 +359,8 @@ msgid "Outlook Mail Server"
 msgstr "Serveur de messagerie Outlook"
 
 msgid "Configure using Microsoft Azure/Office 365 OAuth authentication"
-msgstr "Configurer en utilisant l'authentification Microsoft Azure/Office 365 OAuth"
+msgstr ""
+"Configurer en utilisant l'authentification Microsoft Azure/Office 365 OAuth"
 
 msgid "Select Outlook"
 msgstr "Sélectionner Outlook"
@@ -379,7 +402,9 @@ msgid "Configure Outgoing Mail"
 msgstr "Configurer le mail sortant"
 
 msgid "Please contact your administrator to configure outgoing mail settings."
-msgstr "Veuillez contacter votre administrateur pour configurer les paramètres de messagerie sortante."
+msgstr ""
+"Veuillez contacter votre administrateur pour configurer les paramètres de "
+"messagerie sortante."
 
 msgid "Send Mail"
 msgstr "Envoyer le mail"
@@ -404,6 +429,9 @@ msgstr "De :"
 
 msgid "No sender configured"
 msgstr "Aucun expéditeur configuré"
+
+msgid "No subject"
+msgstr "Sans objet"
 
 msgid "No message content"
 msgstr "Aucun contenu de message"
@@ -445,26 +473,32 @@ msgid "Schedule"
 msgstr "Planifier"
 
 msgid "Cannot send email. Outgoing mail must be configured first."
-msgstr "Impossible d'envoyer l'e-mail. Le mail sortant doit être configuré en premier."
+msgstr ""
+"Impossible d'envoyer l'e-mail. Le mail sortant doit être configuré en "
+"premier."
+
+msgid "To email is required"
+msgstr "L'e-mail du destinataire est requis"
+
+msgid "From mail configuration is required"
+msgstr "La configuration du mail expéditeur est requise"
 
 msgid ""
-"Message body contains potentially dangerous content (XSS detected). Please "
-"remove any scripts or malicious code."
+"Both model_name and object_id are required to send mail related to an object."
 msgstr ""
-"Le corps du message contient un contenu potentiellement dangereux (XSS "
-"détecté). Veuillez supprimer tous les scripts ou codes malveillants."
+"Les champs model_name et object_id sont tous deux requis pour envoyer un e-mail lié à un objet."
 
-msgid "Missing required fields: "
-msgstr "Champs requis manquants : "
+msgid ""
+"Cannot send mail: model information is missing. Please try again from the "
+"opportunity page."
+msgstr ""
+"Impossible d'envoyer l'e-mail : les informations du modèle sont manquantes. Veuillez réessayer depuis la page de l'opportunité."
 
 msgid "Failed to send mail: "
 msgstr "Échec de l'envoi du mail : "
 
 msgid "Error sending mail: "
 msgstr "Erreur lors de l'envoi du mail : "
-
-msgid "No content to save as draft"
-msgstr "Aucun contenu à enregistrer comme brouillon"
 
 msgid "Draft saved successfully"
 msgstr "Brouillon enregistré avec succès"
@@ -492,15 +526,6 @@ msgstr "Mail planifié introuvable ou vous n'avez pas la permission"
 
 msgid "Mail rescheduled successfully for "
 msgstr "Mail replanifié avec succès pour "
-
-msgid "To email is required"
-msgstr "L'e-mail du destinataire est requis"
-
-msgid "From mail configuration is required"
-msgstr "La configuration du mail expéditeur est requise"
-
-msgid "Message body contains potentially dangerous content (XSS detected)."
-msgstr "Le corps du message contient un contenu potentiellement dangereux (XSS détecté)."
 
 msgid "Invalid mail configuration selected"
 msgstr "Configuration de mail invalide sélectionnée"

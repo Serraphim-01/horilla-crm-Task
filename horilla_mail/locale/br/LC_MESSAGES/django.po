@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-19 10:06+0000\n"
+"POT-Creation-Date: 2026-02-21 07:51+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -81,13 +81,18 @@ msgstr ""
 msgid "Mail template \"{}\" created successfully."
 msgstr ""
 
-msgid "Please correct the errors below."
-msgstr ""
-
 msgid "Token not refreshed, Login required"
 msgstr ""
 
 msgid "Token refreshed successfully"
+msgstr ""
+
+#, python-brace-format
+msgid "Token refresh failed: {error}. Please re-authenticate."
+msgstr ""
+
+#, python-brace-format
+msgid "Token refresh failed: {error}"
 msgstr ""
 
 msgid "Incoming Mail Configurations"
@@ -225,6 +230,16 @@ msgid "Body"
 msgstr ""
 
 msgid "When the mail should be sent (for scheduled mails)."
+msgstr ""
+
+msgid ""
+"Subject contains potentially dangerous content (XSS detected). Please remove "
+"any scripts or malicious code."
+msgstr ""
+
+msgid ""
+"Body contains potentially dangerous content (XSS detected). Please remove "
+"any scripts or malicious code."
 msgstr ""
 
 msgid "Mails"
@@ -395,6 +410,9 @@ msgstr ""
 msgid "No sender configured"
 msgstr ""
 
+msgid "No subject"
+msgstr ""
+
 msgid "No message content"
 msgstr ""
 
@@ -437,21 +455,25 @@ msgstr ""
 msgid "Cannot send email. Outgoing mail must be configured first."
 msgstr ""
 
-msgid ""
-"Message body contains potentially dangerous content (XSS detected). Please "
-"remove any scripts or malicious code."
+msgid "To email is required"
 msgstr ""
 
-msgid "Missing required fields: "
+msgid "From mail configuration is required"
+msgstr ""
+
+msgid ""
+"Both model_name and object_id are required to send mail related to an object."
+msgstr ""
+
+msgid ""
+"Cannot send mail: model information is missing. Please try again from the "
+"opportunity page."
 msgstr ""
 
 msgid "Failed to send mail: "
 msgstr ""
 
 msgid "Error sending mail: "
-msgstr ""
-
-msgid "No content to save as draft"
 msgstr ""
 
 msgid "Draft saved successfully"
@@ -479,15 +501,6 @@ msgid "Scheduled mail not found or you don't have permission"
 msgstr ""
 
 msgid "Mail rescheduled successfully for "
-msgstr ""
-
-msgid "To email is required"
-msgstr ""
-
-msgid "From mail configuration is required"
-msgstr ""
-
-msgid "Message body contains potentially dangerous content (XSS detected)."
 msgstr ""
 
 msgid "Invalid mail configuration selected"
