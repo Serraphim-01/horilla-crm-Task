@@ -5,6 +5,7 @@ including dynamic condition handling and role-based logic.
 
 # Standard library imports
 import logging
+from decimal import Decimal, InvalidOperation
 
 # Third-party imports (Django)
 from django import forms
@@ -157,7 +158,17 @@ class ForecastTargetForm(HorillaModelForm):
     def clean_target_amount(self):
         """Validate that target amount is non-negative."""
         target_amount = self.cleaned_data.get("target_amount")
-        if target_amount is not None and target_amount < 0:
+        if target_amount is None:
+            return target_amount
+        try:
+            value = (
+                target_amount
+                if isinstance(target_amount, (int, float, Decimal))
+                else Decimal(str(target_amount))
+            )
+        except (InvalidOperation, TypeError, ValueError):
+            return target_amount
+        if value < 0:
             raise forms.ValidationError("Target amount cannot be negative.")
         return target_amount
 
