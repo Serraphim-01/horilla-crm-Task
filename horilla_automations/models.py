@@ -4,8 +4,10 @@ Models for the horilla_automations app
 
 # Third-party imports (Django)
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.urls import reverse_lazy
+from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from horilla.registry.feature import FEATURE_REGISTRY
@@ -136,7 +138,89 @@ class HorillaAutomation(HorillaCoreModel):
         verbose_name = _("Mail and Notification")
         verbose_name_plural = _("Mail and Notifications")
 
+    def get_template(self):
+        """
+        Returns the template content based on the selected delivery channel.
+        """
+        templates = {
+            "mail": self.mail_template,
+            "notification": self.notification_template,
+        }
+
+        if self.delivery_channel in templates:
+            return templates[self.delivery_channel]
+
+        return format_html(
+            "Mail Template: {}<br>Notification Template: {}",
+            self.mail_template,
+            self.notification_template,
+        )
+
+    def clean(self):
+        """Validate template fields based on delivery_channel."""
+        super().clean()
+        if (
+            self.delivery_channel == "notification"
+            and not self.notification_template_id
+        ):
+            raise ValidationError(
+                {
+                    "notification_template": _(
+                        "Notification template is required when delivery channel is "
+                        "'Send as Notification'."
+                    )
+                }
+            )
+        if self.delivery_channel == "mail":
+            if not self.mail_template_id:
+                raise ValidationError(
+                    {
+                        "mail_template": _(
+                            "Mail template is required when delivery channel is "
+                            "'Send as Mail'."
+                        )
+                    }
+                )
+            if not self.mail_server_id:
+                raise ValidationError(
+                    {
+                        "mail_server": _(
+                            "Outgoing mail server is required when delivery channel is "
+                            "'Send as Mail'."
+                        )
+                    }
+                )
+        if self.delivery_channel == "both":
+            if not self.mail_template_id:
+                raise ValidationError(
+                    {
+                        "mail_template": _(
+                            "Mail template is required when delivery channel is "
+                            "'Send as Mail and Notification'."
+                        )
+                    }
+                )
+            if not self.notification_template_id:
+                raise ValidationError(
+                    {
+                        "notification_template": _(
+                            "Notification template is required when delivery channel is "
+                            "'Send as Mail and Notification'."
+                        )
+                    }
+                )
+            if not self.mail_server_id:
+                raise ValidationError(
+                    {
+                        "mail_server": _(
+                            "Outgoing mail server is required when delivery channel is "
+                            "'Send as Mail and Notification'."
+                        )
+                    }
+                )
+
     def save(self, *args, **kwargs):
+        self.full_clean()
         if not self.pk:
             self.method_title = self.title.replace(" ", "_").lower()
         return super().save(*args, **kwargs)

@@ -23,10 +23,10 @@ from django.views import View
 
 # First-party / Horilla imports
 from horilla.auth.models import User
+from horilla.decorator import htmx_required, permission_required_or_denied
 from horilla_automations.filters import HorillaAutomationFilter
 from horilla_automations.forms import HorillaAutomationForm
 from horilla_automations.models import AutomationCondition, HorillaAutomation
-from horilla_core.decorators import htmx_required, permission_required_or_denied
 from horilla_core.models import HorillaContentType
 from horilla_generics.views import (
     HorillaListView,
@@ -37,6 +37,19 @@ from horilla_generics.views import (
 )
 from horilla_mail.models import HorillaMailConfiguration, HorillaMailTemplate
 from horilla_notifications.models import NotificationTemplate
+
+# Fields that must not appear in condition field choices or in existing conditions (edit form)
+AUTOMATION_CONDITION_EXCLUDED_FIELDS = [
+    "id",
+    "pk",
+    "created_at",
+    "updated_at",
+    "created_by",
+    "updated_by",
+    "company",
+    "additional_info",
+    "password",
+]
 
 
 @method_decorator(
@@ -129,7 +142,13 @@ class HorillaAutomationListView(LoginRequiredMixin, HorillaListView):
     bulk_select_option = False
     list_column_visibility = False
 
-    columns = ["title", "trigger", "model", "mail_template", "delivery_channel"]
+    columns = [
+        "title",
+        "trigger",
+        "model",
+        (_("Template"), "get_template"),
+        "delivery_channel",
+    ]
 
     def no_record_add_button(self):
         """Return configuration for the 'no records' Load Automation button when permitted."""
@@ -189,6 +208,13 @@ class HorillaAutomationFormView(LoginRequiredMixin, HorillaSingleFormView):
     content_type_field = "model"
     save_and_new = False
 
+    def get_existing_conditions(self):
+        """Return existing conditions excluding any that use excluded fields (e.g. password)."""
+        qs = super().get_existing_conditions()
+        if qs is None:
+            return None
+        return qs.exclude(field__in=AUTOMATION_CONDITION_EXCLUDED_FIELDS)
+
     @cached_property
     def form_url(self):
         """Get the URL for the form view."""
@@ -198,6 +224,34 @@ class HorillaAutomationFormView(LoginRequiredMixin, HorillaSingleFormView):
                 "horilla_automations:automation_update_view", kwargs={"pk": pk}
             )
         return reverse_lazy("horilla_automations:automation_create_view")
+
+    def get_context_data(self, **kwargs):
+        """Add form errors to delivery_channel hx-vals so get-template-fields returns them on load."""
+        context = super().get_context_data(**kwargs)
+        form = context.get("form")
+        if (
+            form
+            and self.request.method == "POST"
+            and not form.is_valid()
+            and "delivery_channel" in form.fields
+        ):
+            mail_errors = form.errors.get("mail_template")
+            notif_errors = form.errors.get("notification_template")
+            mail_server_errors = form.errors.get("mail_server")
+            if mail_errors or notif_errors or mail_server_errors:
+                vals = {"automation_id": ""}
+                if form.instance and form.instance.pk:
+                    vals["automation_id"] = str(form.instance.pk)
+                if mail_errors:
+                    vals["mail_template_errors"] = list(mail_errors)
+                if notif_errors:
+                    vals["notification_template_errors"] = list(notif_errors)
+                if mail_server_errors:
+                    vals["mail_server_errors"] = list(mail_server_errors)
+                form.fields["delivery_channel"].widget.attrs["hx-vals"] = json.dumps(
+                    vals
+                )
+        return context
 
 
 @method_decorator(htmx_required, name="dispatch")
@@ -263,18 +317,8 @@ class AutomationFieldChoicesView(LoginRequiredMixin, View):
         all_forward_fields = list(model._meta.fields) + list(model._meta.many_to_many)
 
         for field in all_forward_fields:
-            # Skip excluded fields
-            if field.name in [
-                "id",
-                "pk",
-                "created_at",
-                "updated_at",
-                "created_by",
-                "updated_by",
-                "company",
-                "additional_info",
-                "password",
-            ]:
+            # Skip excluded fields (same list as edit form existing conditions filter)
+            if field.name in AUTOMATION_CONDITION_EXCLUDED_FIELDS:
                 continue
             # Skip non-editable fields (e.g. editable=False on the model)
             if not getattr(field, "editable", True):
@@ -466,27 +510,16 @@ class MailToChoicesView(LoginRequiredMixin, View):
             model_name = None
 
         if not model_name:
-            # Return empty select with just self option
-            select_html = '<select name="mail_to" id="id_mail_to" class="js-example-basic-multiple headselect w-full" multiple="multiple" data-placeholder="Select user fields">'
-            select_html += '<option value="self">Self (User who triggered)</option>'
-            select_html += "</select>"
-            select_html += """
-            <script>
-            setTimeout(function() {
-                if (window.jQuery && jQuery.fn.select2) {
-                    var select = document.getElementById('id_mail_to');
-                    if (select && !jQuery(select).hasClass('select2-hidden-accessible')) {
-                        jQuery(select).select2({
-                            placeholder: 'Select user fields',
-                            allowClear: true,
-                            width: '100%'
-                        });
-                    }
-                }
-            }, 100);
-            </script>
-            """
-            return HttpResponse(select_html)
+            # Return empty select with just self option (template renders safely)
+            return render(
+                request,
+                "partials/mail_to_select_response.html",
+                {
+                    "user_fields": [("self", "Self (User who triggered)")],
+                    "selected_values": [],
+                    "include_select2_script": True,
+                },
+            )
 
         try:
             model = None
@@ -499,47 +532,25 @@ class MailToChoicesView(LoginRequiredMixin, View):
                 except LookupError:
                     continue
             if not model:
-                select_html = '<select name="mail_to" id="id_mail_to" class="js-example-basic-multiple headselect w-full" multiple="multiple" data-placeholder="Select user fields">'
-                select_html += '<option value="self">Self (User who triggered)</option>'
-                select_html += "</select>"
-                select_html += """
-                <script>
-                setTimeout(function() {
-                    if (window.jQuery && jQuery.fn.select2) {
-                        var select = document.getElementById('id_mail_to');
-                        if (select && !jQuery(select).hasClass('select2-hidden-accessible')) {
-                            jQuery(select).select2({
-                                placeholder: 'Select user fields',
-                                allowClear: true,
-                                width: '100%'
-                            });
-                        }
-                    }
-                }, 100);
-                </script>
-                """
-                return HttpResponse(select_html)
+                return render(
+                    request,
+                    "partials/mail_to_select_response.html",
+                    {
+                        "user_fields": [("self", "Self (User who triggered)")],
+                        "selected_values": [],
+                        "include_select2_script": True,
+                    },
+                )
         except Exception:
-            select_html = '<select name="mail_to" id="id_mail_to" class="js-example-basic-multiple headselect w-full" multiple="multiple" data-placeholder="Select user fields">'
-            select_html += '<option value="self">Self (User who triggered)</option>'
-            select_html += "</select>"
-            select_html += """
-            <script>
-            setTimeout(function() {
-                if (window.jQuery && jQuery.fn.select2) {
-                    var select = document.getElementById('id_mail_to');
-                    if (select && !jQuery(select).hasClass('select2-hidden-accessible')) {
-                        jQuery(select).select2({
-                            placeholder: 'Select user fields',
-                            allowClear: true,
-                            width: '100%'
-                        });
-                    }
-                }
-            }, 100);
-            </script>
-            """
-            return HttpResponse(select_html)
+            return render(
+                request,
+                "partials/mail_to_select_response.html",
+                {
+                    "user_fields": [("self", "Self (User who triggered)")],
+                    "selected_values": [],
+                    "include_select2_script": True,
+                },
+            )
 
         # Get User ForeignKey fields
         user_fields = [("self", "Self (User who triggered)")]
@@ -622,21 +633,15 @@ class MailToChoicesView(LoginRequiredMixin, View):
         if not user_fields:
             user_fields = [("self", "Self (User who triggered)")]
 
-        select_html = '<select name="mail_to" id="id_mail_to" class="js-example-basic-multiple headselect w-full" multiple="multiple"'
-        select_html += ' data-placeholder="Select user fields"'
-        select_html += ">"
-
-        for value, label in user_fields:
-            selected = ' selected="selected"' if value in selected_values else ""
-            # Escape HTML to prevent XSS
-            escaped_value = escape(str(value))
-            escaped_label = escape(str(label))
-            select_html += (
-                f'<option value="{escaped_value}"{selected}>{escaped_label}</option>'
-            )
-        select_html += "</select>"
-
-        return HttpResponse(select_html)
+        return render(
+            request,
+            "partials/mail_to_select_response.html",
+            {
+                "user_fields": user_fields,
+                "selected_values": selected_values,
+                "include_select2_script": False,
+            },
+        )
 
 
 @method_decorator(htmx_required, name="dispatch")
@@ -680,6 +685,44 @@ class TemplateFieldsView(LoginRequiredMixin, View):
         delivery_channel = request.GET.get("delivery_channel", "mail")
         automation_id = request.GET.get("automation_id")
         model_id = request.GET.get("model")
+
+        # Pass through form errors when load is triggered after failed submit (so OOB swap keeps them)
+        mail_template_errors = []
+        notification_template_errors = []
+        mail_server_errors = []
+        raw_mail = request.GET.get("mail_template_errors")
+        raw_notif = request.GET.get("notification_template_errors")
+        raw_mail_server = request.GET.get("mail_server_errors")
+        if raw_mail is not None:
+            if isinstance(raw_mail, str) and raw_mail.startswith("["):
+                try:
+                    mail_template_errors = json.loads(raw_mail)
+                except (ValueError, TypeError):
+                    mail_template_errors = [raw_mail]
+            else:
+                mail_template_errors = request.GET.getlist("mail_template_errors") or [
+                    raw_mail
+                ]
+        if raw_notif is not None:
+            if isinstance(raw_notif, str) and raw_notif.startswith("["):
+                try:
+                    notification_template_errors = json.loads(raw_notif)
+                except (ValueError, TypeError):
+                    notification_template_errors = [raw_notif]
+            else:
+                notification_template_errors = request.GET.getlist(
+                    "notification_template_errors"
+                ) or [raw_notif]
+        if raw_mail_server is not None:
+            if isinstance(raw_mail_server, str) and raw_mail_server.startswith("["):
+                try:
+                    mail_server_errors = json.loads(raw_mail_server)
+                except (ValueError, TypeError):
+                    mail_server_errors = [raw_mail_server]
+            else:
+                mail_server_errors = request.GET.getlist("mail_server_errors") or [
+                    raw_mail_server
+                ]
 
         # Get content_type from model_id if provided
         content_type = None
@@ -773,5 +816,8 @@ class TemplateFieldsView(LoginRequiredMixin, View):
                 "mail_template_label": mail_template_label,
                 "notification_template_label": notification_template_label,
                 "mail_server_label": mail_server_label,
+                "mail_template_errors": mail_template_errors,
+                "notification_template_errors": notification_template_errors,
+                "mail_server_errors": mail_server_errors,
             },
         )
