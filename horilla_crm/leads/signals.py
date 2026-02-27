@@ -13,7 +13,7 @@ from django.db import transaction
 from django.db.models import Case, F, IntegerField, Q, When
 from django.db.models.signals import post_save, pre_delete
 from django.dispatch import Signal, receiver
-from django.http import HttpResponse
+from django.shortcuts import render
 from django.urls import reverse_lazy
 
 # First-party / Horilla imports
@@ -38,23 +38,13 @@ def handle_company_created(sender, instance, request, view, is_new, **kwargs):
     """Inject lead stages loading after company creation"""
     if is_new:  # Only for new companies
         url = reverse_lazy("leads:load_lead_stages", kwargs={"company_id": instance.id})
-        return HttpResponse(
-            f"""
-            <script>
-                closeModal();
-                $('#reloadButton').click();
-                openContentModal();
-                var div = document.createElement('div');
-                div.setAttribute('hx-get', '{url}');
-                div.setAttribute('hx-target', '#contentModalBox');
-                div.setAttribute('hx-trigger', 'load');
-                div.setAttribute('hx-swap', 'innerHTML');
-                document.body.appendChild(div);
-                htmx.process(div);
-            </script>
-            """,
-            headers={"X-Debug": "Modal transition in progress"},
+        response = render(
+            request,
+            "lead_status/reload_and_load_url_script.html",
+            {"load_url": str(url)},
         )
+        response["X-Debug"] = "Modal transition in progress"
+        return response
     return None
 
 

@@ -12,7 +12,6 @@ from django.apps import apps
 from django.db import models
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import Signal, receiver
-from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import reverse_lazy
 
@@ -58,23 +57,13 @@ def handle_lead_stage_group_created(
     url = reverse_lazy(
         "opportunities:load_opp_stages", kwargs={"company_id": company.id}
     )
-    return HttpResponse(
-        f"""
-        <script>
-            closeModal();
-            $('#reloadButton').click();
-            openContentModal();
-            var div = document.createElement('div');
-            div.setAttribute('hx-get', '{url}');
-            div.setAttribute('hx-target', '#contentModalBox');
-            div.setAttribute('hx-trigger', 'load');
-            div.setAttribute('hx-swap', 'innerHTML');
-            document.body.appendChild(div);
-            htmx.process(div);
-        </script>
-        """,
-        headers={"X-Debug": "Modal transition in progress"},
+    response = render(
+        request,
+        "opportunity_stage/reload_and_load_url_script.html",
+        {"load_url": str(url)},
     )
+    response["X-Debug"] = "Modal transition in progress"
+    return response
 
 
 @receiver(company_currency_changed)

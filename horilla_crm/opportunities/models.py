@@ -9,7 +9,6 @@ from django.db import models, transaction
 from django.db.models.signals import post_delete, pre_save
 from django.dispatch import receiver
 from django.urls import reverse_lazy
-from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 
 # First-party / Horilla imports
@@ -62,7 +61,7 @@ class OpportunityStage(HorillaCoreModel):
             path="opportunity_stage/is_final_col.html",
             context={"instance": self},
         )
-        return mark_safe(html)
+        return html
 
     def clean(self):
         if self.order < 0:
@@ -902,7 +901,7 @@ class OpportunitySplitType(HorillaCoreModel):
             path="opportunity_split/is_active_col.html", context={"instance": self}
         )
 
-        return mark_safe(html)
+        return html
 
     @property
     def is_overlay(self):
