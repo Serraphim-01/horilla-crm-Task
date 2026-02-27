@@ -12,10 +12,9 @@ from django.http import HttpResponse
 from django.utils.decorators import method_decorator
 from django.views.generic import TemplateView, View
 
-from horilla_automations.models import HorillaAutomation
-
 # First-party (Horilla) imports
-from horilla_core.decorators import htmx_required, permission_required_or_denied
+from horilla.decorator import htmx_required, permission_required_or_denied
+from horilla_automations.models import HorillaAutomation
 from horilla_core.models import HorillaContentType
 from horilla_mail.models import HorillaMailConfiguration, HorillaMailTemplate
 
@@ -101,10 +100,9 @@ class LoadAutomationModalView(LoginRequiredMixin, TemplateView):
     template_name = "load_automation.html"
 
     def get_context_data(self, **kwargs):
+        """Load mail templates, collect default automations from app automation_files, and add mail servers to context."""
         context = super().get_context_data(**kwargs)
-        # Load mail templates from apps (template_files) so they exist before showing automations
-        _ensure_mail_templates_loaded(self.request)
-        # Collect default automations from apps with automation_files
+
         all_automations = []
         for app_config in apps.get_app_configs():
             automation_files = getattr(app_config, "automation_files", [])
@@ -150,6 +148,7 @@ class CreateSelectedAutomationsView(LoginRequiredMixin, View):
     """Create selected default automations with the chosen mail server and loaded templates."""
 
     def post(self, request, *args, **kwargs):
+        """Create selected automations using the chosen mail server; return script or error response."""
         mail_server_id = request.POST.get("mail_server")
         selected_titles = request.POST.getlist("selected_automations")
 
