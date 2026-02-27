@@ -68,14 +68,17 @@ class HorillaMailConfigurationViewSet(
         manual_parameters=[search_param], operation_description=MAIL_SEARCH_FILTER_DOCS
     )
     def list(self, request, *args, **kwargs):
+        """List mail configurations with search and filter support."""
         return super().list(request, *args, **kwargs)
 
     @swagger_auto_schema(operation_description=MAIL_BULK_UPDATE_DOCS)
     def bulk_update(self, request, *args, **kwargs):
+        """Update multiple mail configurations."""
         return super().bulk_update(request, *args, **kwargs)
 
     @swagger_auto_schema(operation_description=MAIL_BULK_DELETE_DOCS)
     def bulk_delete(self, request, *args, **kwargs):
+        """Delete multiple mail configurations."""
         return super().bulk_delete(request, *args, **kwargs)
 
 
@@ -103,14 +106,17 @@ class HorillaMailViewSet(SearchFilterMixin, BulkOperationsMixin, viewsets.ModelV
         manual_parameters=[search_param], operation_description=MAIL_SEARCH_FILTER_DOCS
     )
     def list(self, request, *args, **kwargs):
+        """List mail records with search and filter support."""
         return super().list(request, *args, **kwargs)
 
     @swagger_auto_schema(operation_description=MAIL_BULK_UPDATE_DOCS)
     def bulk_update(self, request, *args, **kwargs):
+        """Update multiple mail records."""
         return super().bulk_update(request, *args, **kwargs)
 
     @swagger_auto_schema(operation_description=MAIL_BULK_DELETE_DOCS)
     def bulk_delete(self, request, *args, **kwargs):
+        """Delete multiple mail records."""
         return super().bulk_delete(request, *args, **kwargs)
 
 
@@ -131,14 +137,17 @@ class HorillaMailAttachmentViewSet(
         manual_parameters=[search_param], operation_description=MAIL_SEARCH_FILTER_DOCS
     )
     def list(self, request, *args, **kwargs):
+        """List mail attachments with search and filter support."""
         return super().list(request, *args, **kwargs)
 
     @swagger_auto_schema(operation_description=MAIL_BULK_UPDATE_DOCS)
     def bulk_update(self, request, *args, **kwargs):
+        """Update multiple mail attachments."""
         return super().bulk_update(request, *args, **kwargs)
 
     @swagger_auto_schema(operation_description=MAIL_BULK_DELETE_DOCS)
     def bulk_delete(self, request, *args, **kwargs):
+        """Delete multiple mail attachments."""
         return super().bulk_delete(request, *args, **kwargs)
 
 
@@ -157,12 +166,15 @@ class HorillaMailTemplateViewSet(
         manual_parameters=[search_param], operation_description=MAIL_SEARCH_FILTER_DOCS
     )
     def list(self, request, *args, **kwargs):
+        """List mail templates with search and filter support."""
         return super().list(request, *args, **kwargs)
 
     @swagger_auto_schema(operation_description=MAIL_BULK_UPDATE_DOCS)
     def bulk_update(self, request, *args, **kwargs):
+        """Update multiple mail templates."""
         return super().bulk_update(request, *args, **kwargs)
 
     @swagger_auto_schema(operation_description=MAIL_BULK_DELETE_DOCS)
     def bulk_delete(self, request, *args, **kwargs):
+        """Delete multiple mail templates."""
         return super().bulk_delete(request, *args, **kwargs)

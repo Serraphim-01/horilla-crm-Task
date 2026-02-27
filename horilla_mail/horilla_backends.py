@@ -1,4 +1,4 @@
-""" Custom email backend supporting SMTP and Outlook via Microsoft Graph API."""
+"""Custom email backend supporting SMTP and Outlook via Microsoft Graph API."""
 
 import logging
 import re

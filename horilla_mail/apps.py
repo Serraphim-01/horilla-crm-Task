@@ -32,6 +32,7 @@ class HorillaMailConfig(AppConfig):
         ]
 
     def ready(self):
+        """Perform app initialization: register URLs, signals, scheduler, and Celery beat."""
         try:
 
             # Auto-register this app's main URLs (non-API)

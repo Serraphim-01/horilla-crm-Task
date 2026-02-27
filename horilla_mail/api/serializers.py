@@ -23,7 +23,7 @@ class HorillaMailConfigurationSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def validate(self, attrs):
-        # Ensure only one primary configuration per system
+        """Ensure only one primary mail configuration exists per system."""
         is_primary = attrs.get(
             "is_primary", getattr(self.instance, "is_primary", False)
         )
@@ -50,7 +50,7 @@ class HorillaMailSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def validate(self, attrs):
-        # Validate content_type and object_id for related_to
+        """Validate content_type and object_id so the related object exists."""
         content_type = attrs.get("content_type") or getattr(
             self.instance, "content_type", None
         )
@@ -91,7 +91,7 @@ class HorillaMailTemplateSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def validate(self, attrs):
-        # Enforce unique_together (title, company)
+        """Enforce unique (title, company) for mail templates."""
         title = attrs.get("title") or getattr(self.instance, "title", None)
         company = attrs.get("company") or getattr(self.instance, "company", None)
         if title and company:

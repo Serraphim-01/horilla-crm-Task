@@ -136,6 +136,7 @@ class HorillaMailConfiguration(HorillaCoreModel):
         return render_template(path="mail_actions.html", context={"instance": self})
 
     def clean(self):
+        """Validate that company is set when the configuration is not primary."""
         if not self.company and not self.is_primary:
             raise ValidationError({"company": _("This field is required")})
 
@@ -299,8 +300,6 @@ class HorillaMail(HorillaCoreModel):
     def save(self, *args, **kwargs):
         """Override save to ensure clean() is called for validation."""
         # Set updated_by before validation (parent save will also set it, but we need it for validation)
-        from horilla_utils.middlewares import _thread_local
-
         request = getattr(_thread_local, "request", None)
         if request:
             user = getattr(request, "user", None)
