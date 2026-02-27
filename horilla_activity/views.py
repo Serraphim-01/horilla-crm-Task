@@ -5,9 +5,11 @@ This file contains the view functions or classes that handle HTTP
 requests and responses for the application.
 """
 
+# Standard library imports
 import datetime
 from urllib.parse import urlencode
 
+# Third-party imports (Django)
 from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -22,14 +24,23 @@ from django.utils.functional import cached_property  # type: ignore
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView
 
-from horilla.utils.shortcuts import get_object_or_404
-from horilla_activity.filters import ActivityFilter
-from horilla_activity.forms import EventForm
-from horilla_core.decorators import (
+from horilla.decorator import (
     htmx_required,
     permission_required,
     permission_required_or_denied,
 )
+from horilla.http import HorillaRefreshResponse
+
+# First-party / Horilla imports
+from horilla.utils.shortcuts import get_object_or_404
+from horilla_activity.filters import ActivityFilter
+from horilla_activity.forms import (
+    ActivityCreateForm,
+    EventForm,
+    LogCallForm,
+    MeetingsForm,
+)
+from horilla_activity.models import Activity
 from horilla_generics.mixins import RecentlyViewedMixin
 from horilla_generics.views import (
     HorillaDetailSectionView,
@@ -47,9 +58,6 @@ from horilla_generics.views import (
 from horilla_mail.models import HorillaMail
 from horilla_utils.middlewares import _thread_local
 
-from .forms import ActivityCreateForm, EventForm, LogCallForm, MeetingsForm
-from .models import Activity
-
 
 @method_decorator(htmx_required, name="dispatch")
 class HorillaActivitySectionView(DetailView):
@@ -61,11 +69,12 @@ class HorillaActivitySectionView(DetailView):
     context_object_name = "obj"
 
     def dispatch(self, request, *args, **kwargs):
+        """Dispatch the request; fetch the object and handle errors with HX-Refresh."""
         try:
             self.object = self.get_object()
         except Exception as e:
             messages.error(self.request, e)
-            return HttpResponse(headers={"HX-Refresh": "true"})
+            return HorillaRefreshResponse(self.request)
         return super().dispatch(request, *args, **kwargs)
 
     def add_task_button(self):
@@ -105,6 +114,7 @@ class HorillaActivitySectionView(DetailView):
         }
 
     def get_context_data(self, **kwargs):
+        """Add activity tab context: object_id, content_type, and action buttons."""
         context = super().get_context_data(**kwargs)
         pk = self.kwargs.get("pk")
         context["object_id"] = pk
@@ -488,7 +498,6 @@ class TaskListView(LoginRequiredMixin, HorillaListView):
     """
 
     model = Activity
-    clear_session_button_enabled = False
     bulk_select_option = False
     paginate_by = 5
     table_class = False
@@ -656,7 +665,6 @@ class MeetingListView(HorillaListView):
 
     model = Activity
     paginate_by = 10
-    clear_session_button_enabled = False
     bulk_select_option = False
     table_class = False
     table_width = False
@@ -785,7 +793,6 @@ class CallListView(HorillaListView):
 
     model = Activity
     paginate_by = 10
-    clear_session_button_enabled = False
     bulk_select_option = False
     table_class = False
     table_height = False
@@ -911,7 +918,6 @@ class EmailListView(HorillaListView):
     """
 
     model = HorillaMail
-    clear_session_button_enabled = False
     bulk_select_option = False
     paginate_by = 10
     table_class = False
@@ -1095,7 +1101,6 @@ class EventListView(HorillaListView):
     """
 
     model = Activity
-    clear_session_button_enabled = False
     bulk_select_option = False
     paginate_by = 10
     table_class = False
@@ -1303,6 +1308,7 @@ class TaskCreateForm(LoginRequiredMixin, HorillaSingleFormView):
         return render(request, "error/403.html")
 
     def get_initial(self):
+        """Set initial form data from GET params (object_id, model_name) for task creation."""
         initial = super().get_initial()
         object_id = self.request.GET.get("object_id")
         model_name = self.request.GET.get("model_name")
@@ -1362,6 +1368,7 @@ class MeetingsCreateForm(LoginRequiredMixin, HorillaSingleFormView):
         return reverse_lazy("horilla_activity:meeting_create_form")
 
     def get_initial(self):
+        """Set initial meeting form data from GET/POST, including is_all_day and related fields."""
         initial = super().get_initial()
         if self.request.method == "POST":
             initial["is_all_day"] = self.request.POST.get("is_all_day") == "on"
@@ -1518,6 +1525,7 @@ class CallCreateForm(LoginRequiredMixin, HorillaSingleFormView):
         return reverse_lazy("horilla_activity:call_create_form")
 
     def get_initial(self):
+        """Set initial call form data from GET params and default duration for new calls."""
         initial = super().get_initial()
         object_id = self.request.GET.get("object_id")
         model_name = self.request.GET.get("model_name")
@@ -1723,6 +1731,7 @@ class EventCreateForm(LoginRequiredMixin, HorillaSingleFormView):
         return render(request, "error/403.html")
 
     def get_initial(self):
+        """Set initial event form data from GET/POST, including is_all_day and related fields."""
         initial = super().get_initial()
         if self.request.method == "POST":
             initial["is_all_day"] = self.request.POST.get("is_all_day") == "on"
@@ -1874,6 +1883,7 @@ class ActivityCreateView(LoginRequiredMixin, HorillaSingleFormView):
     }
 
     def get_initial(self):
+        """Set initial form data for create/edit, including is_all_day, date, and activity_type."""
         initial = super().get_initial()
 
         is_create = not (self.kwargs.get("pk") or self.object)

@@ -30,6 +30,7 @@ class HorillaActivityConfig(AppConfig):
         ]
 
     def ready(self):
+        """Perform app initialization: register URLs and import activity modules."""
         try:
             from django.urls import include, path
 
@@ -41,8 +42,8 @@ class HorillaActivityConfig(AppConfig):
 
             __import__("horilla_activity.registration")
             __import__("horilla_activity.methods")
-            __import__("horilla_activity.menu")  # noqa: F401
-            __import__("horilla_activity.signals")  # noqa:F401
+            __import__("horilla_activity.menu")
+            __import__("horilla_activity.signals")
         except Exception as e:
             import logging
 
