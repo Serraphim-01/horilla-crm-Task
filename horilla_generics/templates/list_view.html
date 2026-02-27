@@ -132,7 +132,7 @@
 
                         <button
                             class="unselect-all-btn text-xs px-4 py-2 bg-[#ba10bf2a] rounded-md hover:bg-[#ba10bf] transition duration-300 text-[#ba10bf] border border-[#ba10bf2a] hover:text-[white]"
-                            onclick="selectAll(false, '{{ view_id|safe }}')"
+                            onclick="clearSelections('{{ view_id|safe }}')"
                             id="unselect-all-btn-{{ view_id|safe }}"
                             style="display: none;">
                             <i class="fa-solid fa-xmark" style="padding-right: 0.25rem;"></i>
@@ -280,15 +280,6 @@
                             </button>
                         {% endfor %}
 
-                        {% if clear_session_button_enabled and bulk_select_option%}
-                            <button
-                                class="text-xs px-4 py-2 bg-[#ff00491f] rounded-md hover:bg-[#ff0049] transition duration-300 text-[#ff0049] border border-[1px solid #ff004929] hover:text-[white]"
-                                onclick="clearSelections('{{ view_id|safe }}')"
-                                id="clear-select-btn-{{ view_id|safe }}">
-                                <i class="fa-solid fa-delete-left pe-1"></i>
-                                {% trans 'Clear Session' %}
-                            </button>
-                        {% endif %}
                     </div>
                 </div>
             {% endif %}
