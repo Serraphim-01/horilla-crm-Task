@@ -26,11 +26,11 @@
             {% endif %}
 
             <div class="{% if modal_height %}h-[500px]{% endif %} overflow-hidden overflow-y-auto pe-2">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mb-3">
                     <!-- is_role_based -->
                     <div class="text-sm flex items-center gap-2 relative">
-                        <label class="inline-flex items-center cursor-pointer">
-                            <span class="me-3 text-xs text-color-600">{{ form.is_role_based.label }}</span>
+                        <label class="inline-flex items-center cursor-pointer w-full justify-between">
+                            <span class="text-xs text-color-600">{{ form.is_role_based.label }}</span>
                             {{ form.is_role_based }}
                             <div class="relative w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-primary-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
                         </label>
@@ -55,8 +55,8 @@
 
                     <!-- is_period_same -->
                     <div class="text-sm flex items-center gap-2 relative">
-                        <label class="inline-flex items-center cursor-pointer">
-                            <span class="me-3 text-xs text-color-600">{{ form.is_period_same.label }}</span>
+                        <label class="inline-flex items-center cursor-pointer w-full justify-between">
+                            <span class="text-xs text-color-600">{{ form.is_period_same.label }}</span>
                             {{ form.is_period_same }}
                             <div class="relative w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-primary-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
                         </label>
@@ -78,10 +78,11 @@
                             </div>
                         {% endif %}
                     </div>
-                     <!-- is_forecast_type_same -->
+
+                    <!-- is_forecast_type_same -->
                     <div class="text-sm flex items-center gap-2 relative">
-                        <label class="inline-flex items-center cursor-pointer">
-                            <span class="me-3 text-xs text-color-600">{{ form.is_forecast_type_same.label }}</span>
+                        <label class="inline-flex items-center cursor-pointer w-full justify-between">
+                            <span class="text-xs text-color-600">{{ form.is_forecast_type_same.label }}</span>
                             {{ form.is_forecast_type_same }}
                             <div class="relative w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-primary-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
                         </label>
@@ -106,12 +107,11 @@
 
                     <!-- is_target_same -->
                     <div class="text-sm flex items-center gap-2 relative">
-                        <label class="inline-flex items-center cursor-pointer">
-                            <span class="me-3 text-xs text-color-600">{{ form.is_target_same.label }}</span>
+                        <label class="inline-flex items-center cursor-pointer w-full justify-between">
+                            <span class="text-xs text-color-600">{{ form.is_target_same.label }}</span>
                             {{ form.is_target_same }}
                             <div class="relative w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-primary-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
                         </label>
-
                         {% if form.is_target_same.errors %}
                             <div class="bg-red-50 text-red-500 px-3 py-2 rounded text-xs mt-1">
                                 {% for error in form.is_target_same.errors %}
@@ -133,8 +133,6 @@
                             </div>
                         {% endif %}
                     </div>
-
-
 
                 </div>
 

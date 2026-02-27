@@ -1,6 +1,12 @@
 {% load static i18n %}
-<div class="h-[calc(_100vh_-_300px_)] overflow-hidden overflow-y-auto">
-    <div id="forecast-table" class="">
+
+<div class="h-[calc(_100vh_-_300px_)] ">
+    <div class="p-3 pt-0  rounded-md">
+        <p class="text-sm text-gray-600">
+            <strong>{% trans "Forecast Type:" %}</strong> {{ forecast_type.get_forecast_type_display }}
+        </p>
+    </div>
+    <div id="forecast-table" class="h-[calc(_100vh_-_360px_)] overflow-hidden overflow-y-auto">
         <table class="w-full">
             <thead class="sticky top-0 bg-primary-100 text-primary-600 z-10">
                 <tr>
@@ -15,8 +21,8 @@
                 </tr>
             </thead>
             <tbody class="bg-white">
-                <tr class="bg-gray-100 font-bold">
-                    <td class="text-[13px] border-[1px] border-[solid] border-[#dddddd] text-left p-3">
+                <tr class="bg-gray-100 font-bold sticky top-[43px] z-10">
+                    <td class="text-[13px] border-[1px] border-[solid] border-[#dddddd]  text-left p-3">
                         <div class="flex items-center gap-2">
                             <span class="font-bold">{% trans "Total" %} ({{ forecasts|length }} {% trans "Periods" %})</span>
                         </div>
@@ -504,11 +510,7 @@
             </tbody>
         </table>
     </div>
-    <div class="mt-4 p-3 bg-gray-50 rounded-md">
-        <p class="text-sm text-gray-600">
-            <strong>{% trans "Forecast Type:" %}</strong> {{ forecast_type.get_forecast_type_display }}
-        </p>
-    </div>
+
 </div>
 
 <!-- Display forecast type information -->
