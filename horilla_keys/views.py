@@ -2,9 +2,11 @@
 Views for the horilla_keys app
 """
 
+# Standard library imports
 import logging
 from functools import cached_property
 
+# Third-party imports (Django)
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse, JsonResponse
@@ -13,7 +15,8 @@ from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 
-from horilla_core.decorators import htmx_required
+# First-party / Horilla imports
+from horilla.decorator import htmx_required
 from horilla_generics.views import (
     HorillaListView,
     HorillaNavView,
@@ -143,6 +146,7 @@ class ShortKeyFormView(LoginRequiredMixin, HorillaSingleFormView):
         return reverse_lazy("horilla_keys:short_key_create")
 
     def get_initial(self):
+        """Set initial form data with current user and active company."""
         initial = super().get_initial()
         initial["user"] = self.request.user
         company = getattr(self.request, "active_company", None)
