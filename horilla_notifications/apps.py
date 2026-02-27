@@ -41,6 +41,7 @@ class HorillaNotificationsConfig(AppConfig):
         ]
 
     def ready(self):
+        """Perform app initialization: register URLs and import signals and menu."""
         try:
             # Auto-register this app's URLs and add to installed apps
             from django.urls import include, path

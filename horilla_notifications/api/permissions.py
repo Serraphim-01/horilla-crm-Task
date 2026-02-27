@@ -11,5 +11,5 @@ class IsNotificationOwner(permissions.BasePermission):
     """
 
     def has_object_permission(self, request, view, obj):
-        # Check if the user is the owner of the notification
+        """Allow access only if the user owns the notification or is staff."""
         return obj.user == request.user or request.user.is_staff
