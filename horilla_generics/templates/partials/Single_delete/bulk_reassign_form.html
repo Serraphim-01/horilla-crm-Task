@@ -11,7 +11,7 @@
     <p class="text-sm text-gray-600 mb-4">
         {% trans 'Reassign all dependent' %} {{ model_verbose_name }} {% trans 'to a new target before deleting' %} "{{ object }}".
     </p>
-    <form hx-post="{{ search_url }}" hx-push-url="false" hx-on::after-request="closeDeleteModal();">
+    <form hx-post="{{ search_url }}" hx-push-url="false" hx-on::after-request="closeDeleteModal();closeDeleteModeModal();closeModal();$('.unselect-all-btn').click();$('#reloadButton').click();">
         {% csrf_token %}
         <label for="new_target_id" class="text-sm text-color-600">{% trans 'New Target' %}</label>
         <div class="flex w-full mb-3">

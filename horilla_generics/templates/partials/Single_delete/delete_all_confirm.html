@@ -10,7 +10,15 @@
         </button>
     </div>
     <p class="text-sm text-gray-600 mb-4 ">
-        {% trans 'Deleting this' %} <strong>{{ model_verbose_name }}</strong> {% trans 'will also remove all its related' %} <strong>{{ related_verbose_name_plural }}</strong><br> {% trans 'Are you sure you want to proceed ?' %}
+        {% if delete_mode == 'main_soft' %}
+            {% trans 'Soft deleting this' %} <strong>{{ model_verbose_name }}</strong>
+            {% trans 'will also soft delete all its related' %} <strong>{{ related_verbose_name_plural }}</strong>.
+        {% else %}
+            {% trans 'Permanently deleting this' %} <strong>{{ model_verbose_name }}</strong>
+            {% trans 'will also permanently delete all its related' %} <strong>{{ related_verbose_name_plural }}</strong>.
+        {% endif %}
+        <br>
+        {% trans 'Are you sure you want to proceed ?' %}
     </p>
     <div class="flex justify-end gap-2">
         <button onclick="CloseDeleteConfirmModal()" class="text-sm px-6 py-2 bg-primary-600 rounded-md hover:bg-primary-800 transition duration-300 text-[white]">
@@ -21,7 +29,7 @@
               hx-target="#deleteConfirmModalBox"
               hx-swap="none"
               hx-push-url="false"
-              hx-on::after-request="CloseDeleteConfirmModal();closeDeleteModeModal();closeModal();$('.unselect-all-btn').click();">
+              hx-on::after-request="CloseDeleteConfirmModal();closeDeleteModeModal();closeModal();$('.unselect-all-btn').click();$('#reloadButton').click();">
             {% csrf_token %}
             <input type="hidden" name="action" value="bulk_delete">
             <input type="hidden" name="record_id" value="{{ record_id }}">
