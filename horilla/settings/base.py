@@ -142,7 +142,7 @@ MIDDLEWARE = [
 ]
 
 
-ROOT_URLCONF = "horilla.urls"
+ROOT_URLCONF = "horilla.urls.project"
 
 
 TEMPLATES = [
