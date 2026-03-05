@@ -1,0 +1,77 @@
+<div id="preview-wrapper" class="w-full h-full relative overflow-hidden">
+    <div id="preview-chart-{{ chart_type }}" class="w-full h-full" style="min-height: 200px;"></div>
+</div>
+<script>
+(function() {
+    const sampleData = {
+        "column": {
+            "labels": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+            "data": [120, 200, 150, 80, 70, 110, 130],
+            "labelField": "Sample Data"
+        },
+        "bar": {
+            "labels": ["Category A", "Category B", "Category C", "Category D"],
+            "data": [12, 19, 15, 17],
+            "labelField": "Sample Data"
+        },
+        "pie": {
+            "labels": ["Sample A", "Sample B", "Sample C", "Sample D"],
+            "data": [30, 25, 25, 20],
+            "labelField": "Sample Data"
+        },
+        "donut": {
+            "labels": ["Sample 1", "Sample 2", "Sample 3"],
+            "data": [40, 35, 25],
+            "labelField": "Sample Data"
+        },
+        "line": {
+            "labels": ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5"],
+            "data": [10, 25, 15, 30, 28],
+            "labelField": "Sample Data"
+        },
+        "stacked_vertical": {
+            "stackedData": {
+                "categories": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+                "series": [
+                    {"name": "Series 1", "data": [10, 20, 15, 25, 30]},
+                    {"name": "Series 2", "data": [5, 10, 8, 12, 15]}
+                ]
+            },
+            "labelField": "Sample Data",
+            "hasMultipleGroups": true
+        },
+        "stacked_horizontal": {
+            "stackedData": {
+                "categories": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+                "series": [
+                    {"name": "Series 1", "data": [10, 20, 15, 25, 30]},
+                    {"name": "Series 2", "data": [5, 10, 8, 12, 15]}
+                ]
+            },
+            "labelField": "Sample Data",
+            "hasMultipleGroups": true
+        },
+        "funnel": {
+            "labels": ["Stage 1", "Satge 2", "Stage 3", "Stage 4", "Stage 5"],
+            "data": [100, 75, 50, 30, 20],
+            "labelField": "Sample Data"
+        }
+    };
+
+    const chartType = "{{ chart_type|escapejs }}";
+    const config = sampleData[chartType] ? { type: chartType, ...sampleData[chartType] } : null;
+
+    const chartDom = document.getElementById('preview-chart-' + chartType);
+    if (chartDom && config && typeof EChartsConfig !== 'undefined' && typeof echarts !== 'undefined') {
+        const previewKey = 'preview-chart-' + chartType;
+        if (window.chartInstances && window.chartInstances[previewKey]) {
+            try { window.chartInstances[previewKey].instance.dispose(); } catch (e) {}
+        }
+        const myChart = echarts.init(chartDom);
+        const option = EChartsConfig.getChartOption(config);
+        myChart.setOption(option);
+        if (typeof window.chartInstances === 'undefined') window.chartInstances = {};
+        window.chartInstances[previewKey] = { instance: myChart, config: config };
+    }
+})();
+</script>
