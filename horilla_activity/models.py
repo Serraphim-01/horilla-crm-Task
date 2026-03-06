@@ -8,17 +8,14 @@ relationships, constraints, and behaviors.
 
 from django.conf import settings
 
-# Third party imports (Django)
-from django.contrib.contenttypes.fields import GenericForeignKey
-from django.contrib.contenttypes.models import ContentType
-from django.db import models
-
-# First party / Horilla imports
+# First party imports (Horilla)
+from horilla.db import models
+from horilla.registry.limiters import limit_content_types
 from horilla.urls import reverse_lazy
 from horilla.utils.translation import gettext_lazy as _
 
-# First-party / Horilla core imports
-from horilla_core.models import HorillaCoreModel
+# First-party / Horilla apps
+from horilla_core.models import HorillaContentType, HorillaCoreModel
 
 
 class Activity(HorillaCoreModel):
@@ -58,17 +55,18 @@ class Activity(HorillaCoreModel):
         max_length=20, choices=ACTIVITY_TYPES, verbose_name=_("Activity Type")
     )
     content_type = models.ForeignKey(
-        ContentType,
+        HorillaContentType,
         on_delete=models.CASCADE,
+        limit_choices_to=limit_content_types("activity_related_models"),
         verbose_name=_("Related Content Type"),
         null=True,
         blank=True,
     )
 
     object_id = models.PositiveIntegerField(
-        null=True, blank=True, verbose_name=_("Related Object ID")
+        null=True, blank=True, verbose_name=_("Related To")
     )
-    related_object = GenericForeignKey("content_type", "object_id")
+    related_object = models.GenericForeignKey("content_type", "object_id")
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
