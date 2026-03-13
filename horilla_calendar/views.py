@@ -160,7 +160,7 @@ class GetCalendarEventsView(LoginRequiredMixin, View):
         """Handle AJAX GET request to fetch calendar events."""
 
         if not request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return render(request, "error/405.html", status=405)
+            return render(request, "405.html", status=405)
 
         try:
             selected_types = request.GET.getlist("calendar_types[]")

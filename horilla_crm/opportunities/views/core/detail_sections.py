@@ -394,7 +394,7 @@ class OpportunityContactRoleFormview(LoginRequiredMixin, HorillaSingleFormView):
             if opportunity.owner == request.user:
                 return super().get(request, *args, **kwargs)
 
-        return render(request, "error/403.html")
+        return render(request, "403.html")
 
 
 @method_decorator(htmx_required, name="dispatch")

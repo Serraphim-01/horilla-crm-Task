@@ -45,7 +45,7 @@ class ForecastTypeTabView(
 
         if has_view_own and not has_view_all:
             if user_id and user_id != str(request.user.pk):
-                return render(request, "error/403.html")
+                return render(request, "403.html")
             if not user_id:
                 request.GET = request.GET.copy()
                 request.GET["user_id"] = str(request.user.pk)

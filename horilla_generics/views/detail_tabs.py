@@ -189,7 +189,7 @@ class HorillaDetailSectionView(DetailView):
 
         # Permission check
         if not self.check_object_permission(request, self.object):
-            return render(request, "error/403.html", status=403)
+            return render(request, "403.html", status=403)
 
         context = self.get_context_data(object=self.object)
         return self.render_to_response(context)

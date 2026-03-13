@@ -27,8 +27,6 @@ from horilla.utils.decorators import (
 )
 from horilla.utils.translation import gettext_lazy as _
 from horilla_core.forms import ConversionRateForm, CurrencyForm, DatedConversionRateForm
-
-# Local app imports
 from horilla_core.models import DatedConversionRate, MultipleCurrency
 from horilla_core.utils import fetch_exchange_rate_from_api
 from horilla_generics.views import (
@@ -115,7 +113,7 @@ class CompanyMultipleCurrency(LoginRequiredMixin, TemplateView):
             cmp = request.user.company
 
         if not request.user.has_perm("horilla_core.change_company"):
-            return render(request, "error/403.html")
+            return render(request, "403.html")
 
         cmp.activate_multiple_currencies = not cmp.activate_multiple_currencies
         cmp.save()
@@ -181,7 +179,6 @@ class CurrencyListView(LoginRequiredMixin, HorillaListView):
     view_id = "currency-list-view"
     table_width = False
     bulk_select_option = False
-    table_height = False
     table_height_as_class = "h-[400px]"
     search_url = reverse_lazy("horilla_core:currency_list_view")
     main_url = reverse_lazy("horilla_core:currency_list_view")

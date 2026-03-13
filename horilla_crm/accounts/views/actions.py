@@ -1,3 +1,7 @@
+"""
+Views for all account actions
+"""
+
 # Standard library imports
 import logging
 from functools import cached_property
@@ -125,7 +129,7 @@ class AccountChangeOwnerForm(LoginRequiredMixin, HorillaSingleFormView):
         ):
             return super().get(request, *args, **kwargs)
 
-        return render(request, "error/403.html")
+        return render(request, "403.html")
 
 
 @method_decorator(htmx_required, name="dispatch")
@@ -156,7 +160,7 @@ class AddRelatedContactFormView(LoginRequiredMixin, HorillaSingleFormView):
             if account.account_owner == request.user:
                 return super().get(request, *args, **kwargs)
 
-        return render(request, "error/403.html")
+        return render(request, "403.html")
 
     def form_valid(self, form):
         super().form_valid(form)
@@ -214,7 +218,7 @@ class AddChildAccountFormView(LoginRequiredMixin, FormView):
             if account.account_owner == request.user:
                 return super().get(request, *args, **kwargs)
 
-        return render(request, "error/403.html")
+        return render(request, "403.html")
 
     def get_form_kwargs(self):
         """
@@ -355,7 +359,7 @@ class AccountPartnerFormView(LoginRequiredMixin, HorillaSingleFormView):
             if account.account_owner == request.user:
                 return super().get(request, *args, **kwargs)
 
-        return render(request, "error/403.html")
+        return render(request, "403.html")
 
     def form_valid(self, form):
         account = form.cleaned_data.get("account")

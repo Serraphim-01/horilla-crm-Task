@@ -99,7 +99,7 @@ class Horilla405Middleware:
 
         if isinstance(response, HttpResponseNotAllowed):
             """Render a custom 405 error page."""
-            return render(request, "error/405.html", status=405)
+            return render(request, "405.html", status=405)
 
         return response
 

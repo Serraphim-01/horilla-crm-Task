@@ -77,7 +77,7 @@ class ForecastOpportunitiesView(LoginRequiredMixin, View):
 
         if has_view_own and not has_view_all:
             if user_id and user_id != str(request.user.pk):
-                return render(request, "error/403.html")
+                return render(request, "403.html")
             if not user_id:
                 user_id = str(request.user.pk)
         try:
@@ -109,7 +109,7 @@ class ForecastOpportunitiesView(LoginRequiredMixin, View):
                 if has_view_own and not has_view_all:
                     if hasattr(forecast, "owner") and forecast.owner:
                         if forecast.owner.id != request.user.pk:
-                            return render(request, "error/403.html")
+                            return render(request, "403.html")
 
             company = request.active_company
             currency_symbol = company.currency if company else "USD"
@@ -162,7 +162,6 @@ class ForecastOpportunitiesView(LoginRequiredMixin, View):
                     ),
                     table_width=False,
                     columns=columns,
-                    table_height=False,
                     table_height_as_class="h-[400px]",
                     bulk_select_option=False,
                     list_column_visibility=False,

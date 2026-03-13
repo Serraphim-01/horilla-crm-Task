@@ -56,7 +56,7 @@ class HorillaSelect2DataView(LoginRequiredMixin, View):
         paging parameters for select2 results.
         """
         if not request.headers.get("x-requested-with") == "XMLHttpRequest":
-            return render(request, "error/405.html", status=405)
+            return render(request, "405.html", status=405)
         app_label = kwargs.get("app_label")
         model_name = kwargs.get("model_name")
         field_name = request.GET.get("field_name")

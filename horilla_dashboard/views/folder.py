@@ -93,7 +93,7 @@ class DashboardFolderFavoriteView(LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         """Handle GET requests by returning a 403 error page."""
-        return render(request, "error/403.html")
+        return render(request, "403.html")
 
 
 @method_decorator(
@@ -218,7 +218,7 @@ class FolderDetailListView(LoginRequiredMixin, HorillaListView):
         ).first() and not self.request.user.has_perm(
             "horilla_dashboard.view_dashboard"
         ):
-            return render(self.request, "error/403.html")
+            return render(self.request, "403.html")
         try:
             DashboardFolder.objects.get(pk=self.kwargs["pk"])
         except Exception as e:
@@ -377,7 +377,7 @@ class MoveDashboardView(LoginRequiredMixin, HorillaSingleFormView):
             if dashboard.dashboard_owner == request.user:
                 return super().get(request, *args, **kwargs)
 
-        return render(request, "error/403.html")
+        return render(request, "403.html")
 
     def get_form(self, form_class=None):
         """Add widget attrs and restrict folder queryset for non-superusers."""
@@ -427,7 +427,7 @@ class MoveFolderView(LoginRequiredMixin, HorillaSingleFormView):
             if folder.folder_owner == request.user:
                 return super().get(request, *args, **kwargs)
 
-        return render(request, "error/403.html")
+        return render(request, "403.html")
 
     def get_form(self, form_class=None):
         """Add widget attrs and restrict parent_folder queryset for non-superusers."""

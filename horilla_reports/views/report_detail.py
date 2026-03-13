@@ -1,5 +1,6 @@
 """Views for displaying interactive report details and pivots."""
 
+import json
 import logging
 from urllib.parse import urlencode, urlparse
 
@@ -8,6 +9,8 @@ import pandas as pd
 from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
 from django.db.models import ForeignKey, Q
+from django.utils.encoding import force_str
+from django.utils.functional import Promise
 from django.views.generic import DetailView
 
 from horilla.http import HttpNotFound, RefreshResponse
@@ -86,7 +89,7 @@ class ReportDetailView(ReportDetailDataMixin, RecentlyViewedMixin, DetailView):
         if not self.model.objects.filter(
             report_owner_id=self.request.user, pk=self.kwargs["pk"]
         ).first() and not self.request.user.has_perm("horilla_reports.view_report"):
-            return render(self.request, "error/403.html")
+            return render(self.request, "403.html")
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -256,6 +259,20 @@ class ReportDetailView(ReportDetailDataMixin, RecentlyViewedMixin, DetailView):
             )
 
         chart_data = self.generate_chart_data(df, temp_report, fk_cache)
+        if chart_data.get("stacked_data"):
+
+            class _ReportChartEncoder(json.JSONEncoder):
+                def default(self, obj):
+                    if isinstance(obj, Promise):
+                        return force_str(obj)
+                    return super().default(obj)
+
+            chart_data = {
+                **chart_data,
+                "stacked_data": json.dumps(
+                    chart_data["stacked_data"], cls=_ReportChartEncoder
+                ),
+            }
         context["chart_data"] = chart_data
         context["total_count"] = len(data)
         context["total_amount"] = sum(
@@ -295,7 +312,6 @@ class ReportDetailView(ReportDetailDataMixin, RecentlyViewedMixin, DetailView):
         list_view.bulk_select_option = False
         list_view.list_column_visibility = False
         list_view.paginate_by = 10
-        list_view.table_height = False
         list_view.table_height_as_class = "h-[200px]"
         if hasattr(report.model_class, "get_detail_url"):
             list_view.col_attrs = self.col_attrs()
@@ -376,7 +392,14 @@ class ReportDetailView(ReportDetailDataMixin, RecentlyViewedMixin, DetailView):
                 chart_data["urls"] = [section_info["url"]]
 
             elif (
-                report.chart_type in ["stacked_vertical", "stacked_horizontal"]
+                report.chart_type
+                in [
+                    "stacked_vertical",
+                    "stacked_horizontal",
+                    "heatmap",
+                    "sankey",
+                    "radar",
+                ]
                 and chart_data["has_multiple_groups"]
             ):
                 chart_data.update(
@@ -386,13 +409,9 @@ class ReportDetailView(ReportDetailDataMixin, RecentlyViewedMixin, DetailView):
             else:
                 chart_field = None
 
-                if (
-                    hasattr(report, "chart_field")
-                    and report.chart_field
-                    and report.chart_field in df.columns
-                ):
-                    chart_field = report.chart_field
-                elif report.row_groups_list and report.row_groups_list[0] in df.columns:
+                # Prefer current row/column grouping over saved chart_field so the
+                # chart reflects the grouping selected in the panel (e.g. Lead Stage).
+                if report.row_groups_list and report.row_groups_list[0] in df.columns:
                     chart_field = report.row_groups_list[0]
                     if not hasattr(report, "_temp_report"):
                         if not report.chart_field:
@@ -407,6 +426,12 @@ class ReportDetailView(ReportDetailDataMixin, RecentlyViewedMixin, DetailView):
                         if not report.chart_field:
                             report.chart_field = chart_field
                             report.save(update_fields=["chart_field"])
+                elif (
+                    hasattr(report, "chart_field")
+                    and report.chart_field
+                    and report.chart_field in df.columns
+                ):
+                    chart_field = report.chart_field
 
                 if chart_field:
                     grouped = df.groupby(chart_field).size()
@@ -463,55 +488,109 @@ class ReportDetailView(ReportDetailDataMixin, RecentlyViewedMixin, DetailView):
 
         return chart_data
 
+    def _report_drill_value_str(self, value):
+        """Serialize filter value for report chart drill URL (match list view apply_filter)."""
+        if value is True:
+            return "true"
+        if value is False:
+            return "false"
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            return ""
+        return str(value)
+
+    def _report_drill_url_two(
+        self,
+        section_info,
+        primary_field,
+        primary_value,
+        secondary_field,
+        secondary_value,
+    ):
+        """Build list URL with both filters (primary + secondary) for chart segment click."""
+        base = (section_info.get("url") or "").split("?")[0].rstrip("/")
+        if not base:
+            return None
+        v1 = self._report_drill_value_str(primary_value)
+        v2 = self._report_drill_value_str(secondary_value)
+        pairs = [
+            ("section", section_info.get("section", "")),
+            ("apply_filter", "true"),
+            ("field", primary_field),
+            ("operator", "exact"),
+            ("value", v1),
+            ("field", secondary_field),
+            ("operator", "exact"),
+            ("value", v2),
+        ]
+        return f"{base}?{urlencode(pairs)}"
+
     def _generate_stacked_chart_data(self, df, report, model_class, fk_cache=None):
         """Generate data for stacked charts when multiple grouping fields are available."""
         try:
             primary_field = None
             secondary_field = None
 
+            # Prefer current row/column grouping over saved chart_field so the chart
+            # reflects the grouping selected in the panel.
+            if report.row_groups_list and report.column_groups_list:
+                if (
+                    report.row_groups_list[0] in df.columns
+                    and report.column_groups_list[0] in df.columns
+                ):
+                    primary_field = report.row_groups_list[0]
+                    secondary_field = report.column_groups_list[0]
+            if (not primary_field or not secondary_field) and len(
+                report.row_groups_list
+            ) >= 2:
+                if (
+                    report.row_groups_list[0] in df.columns
+                    and report.row_groups_list[1] in df.columns
+                ):
+                    primary_field = report.row_groups_list[0]
+                    secondary_field = report.row_groups_list[1]
+            if (not primary_field or not secondary_field) and len(
+                report.column_groups_list
+            ) >= 2:
+                if (
+                    report.column_groups_list[0] in df.columns
+                    and report.column_groups_list[1] in df.columns
+                ):
+                    primary_field = report.column_groups_list[0]
+                    secondary_field = report.column_groups_list[1]
+
+            # Fall back to saved chart_field / chart_field_stacked
             if (
                 hasattr(report, "chart_field")
                 and report.chart_field
                 and report.chart_field in df.columns
             ):
-                primary_field = report.chart_field
-
+                if not primary_field:
+                    primary_field = report.chart_field
                 if (
                     hasattr(report, "chart_field_stacked")
                     and report.chart_field_stacked
                     and report.chart_field_stacked in df.columns
                     and report.chart_field_stacked != primary_field
+                    and not secondary_field
                 ):
                     secondary_field = report.chart_field_stacked
 
-            elif (
+            if not secondary_field and (
                 hasattr(report, "chart_field_stacked")
                 and report.chart_field_stacked
                 and report.chart_field_stacked in df.columns
             ):
                 secondary_field = report.chart_field_stacked
                 all_fields = report.row_groups_list + report.column_groups_list
-                primary_field = next(
-                    (f for f in all_fields if f != secondary_field and f in df.columns),
-                    None,
-                )
-
-            if not primary_field or not secondary_field:
-                if report.row_groups_list and report.column_groups_list:
-                    if not primary_field:
-                        primary_field = report.row_groups_list[0]
-                    if not secondary_field:
-                        secondary_field = report.column_groups_list[0]
-                elif len(report.row_groups_list) >= 2:
-                    if not primary_field:
-                        primary_field = report.row_groups_list[0]
-                    if not secondary_field:
-                        secondary_field = report.row_groups_list[1]
-                elif len(report.column_groups_list) >= 2:
-                    if not primary_field:
-                        primary_field = report.column_groups_list[0]
-                    if not secondary_field:
-                        secondary_field = report.column_groups_list[1]
+                if not primary_field:
+                    primary_field = next(
+                        (
+                            f
+                            for f in all_fields
+                            if f != secondary_field and f in df.columns
+                        ),
+                        None,
+                    )
 
             if not primary_field or not secondary_field:
                 return self._fallback_chart_data(df, report, model_class, fk_cache)
@@ -565,6 +644,7 @@ class ReportDetailView(ReportDetailDataMixin, RecentlyViewedMixin, DetailView):
 
                 categories.append(unique_label)
 
+            section_info = get_section_info_for_model(model_class)
             series = []
             series_name_count = {}
 
@@ -591,7 +671,14 @@ class ReportDetailView(ReportDetailDataMixin, RecentlyViewedMixin, DetailView):
                 for idx in pivot_table.index:
                     try:
                         value = pivot_table.loc[idx, col]
-                        series_data.append(int(value) if pd.notna(value) else 0)
+                        v = int(value) if pd.notna(value) else 0
+                        drill_url = self._report_drill_url_two(
+                            section_info, primary_field, idx, secondary_field, col
+                        )
+                        if drill_url and v > 0:
+                            series_data.append({"value": v, "url": drill_url})
+                        else:
+                            series_data.append(v)
                     except Exception as val_error:
                         logger.error(
                             "Value extraction error for %s, %s: %s",
@@ -605,7 +692,12 @@ class ReportDetailView(ReportDetailDataMixin, RecentlyViewedMixin, DetailView):
 
             totals = []
             for i in range(len(categories)):
-                total = sum(s["data"][i] for s in series if i < len(s["data"]))
+                total = 0
+                for s in series:
+                    if i >= len(s["data"]):
+                        continue
+                    cell = s["data"][i]
+                    total += cell["value"] if isinstance(cell, dict) else cell
                 totals.append(total)
 
             section_info = get_section_info_for_model(model_class)
@@ -645,16 +737,17 @@ class ReportDetailView(ReportDetailDataMixin, RecentlyViewedMixin, DetailView):
     def _fallback_chart_data(self, df, report, model_class, fk_cache=None):
         """Fallback to simple chart when stacking fails."""
         fallback_field = None
-        if (
+        # Prefer current row/column grouping over saved chart_field
+        if report.row_groups_list and report.row_groups_list[0] in df.columns:
+            fallback_field = report.row_groups_list[0]
+        elif report.column_groups_list and report.column_groups_list[0] in df.columns:
+            fallback_field = report.column_groups_list[0]
+        elif (
             hasattr(report, "chart_field")
             and report.chart_field
             and report.chart_field in df.columns
         ):
             fallback_field = report.chart_field
-        elif report.row_groups_list and report.row_groups_list[0] in df.columns:
-            fallback_field = report.row_groups_list[0]
-        elif report.column_groups_list and report.column_groups_list[0] in df.columns:
-            fallback_field = report.column_groups_list[0]
 
         section_info = get_section_info_for_model(model_class)
 

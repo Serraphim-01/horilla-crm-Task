@@ -75,7 +75,6 @@ class RecycleBinListView(LoginRequiredMixin, HorillaListView):
     table_width = False
     bulk_delete_enabled = False
     bulk_export_option = False
-    table_height = False
     table_height_as_class = "h-[500px]"
 
     custom_bulk_actions = [
@@ -381,7 +380,7 @@ class BinPolicyView(LoginRequiredMixin, View):
 
         if not request.user.has_perm("horilla_core.change_recyclebinpolicy"):
             messages.error(request, _("Yo dont have permission to do this change"))
-            return render(request, "error/403.html")
+            return render(request, "403.html")
 
         policy, created = RecycleBinPolicy.objects.get_or_create(
             company=company, defaults={"retention_days": days}

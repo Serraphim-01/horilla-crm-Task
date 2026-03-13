@@ -86,7 +86,7 @@ class DashboardFavoriteToggleView(LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         """Handle GET request to return 403 error for non-POST requests."""
-        return render(request, "error/403.html")
+        return render(request, "403.html")
 
 
 @method_decorator(htmx_required, name="dispatch")

@@ -92,5 +92,5 @@
     <script src="{% static 'assets/js/role_tree_manager.js' %}"></script>
   </div>
 {% else %}
-  {% include "error/403.html" %}
+  {% include "403.html" with embed=True %}
 {% endif %}

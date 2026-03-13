@@ -30,8 +30,6 @@ from horilla_dashboard.models import (
     DashboardComponent,
     DefaultHomeLayoutOrder,
 )
-
-# Local imports
 from horilla_dashboard.utils import (
     DATE_RANGE_CHOICES,
     validate_custom_date_params,
@@ -210,7 +208,7 @@ class DashboardDetailView(RecentlyViewedMixin, LoginRequiredMixin, TemplateView)
         ).first() and not self.request.user.has_perm(
             "horilla_dashboard.view_dashboard"
         ):
-            return render(self.request, "error/403.html")
+            return render(self.request, "403.html")
 
         redirect_url = validate_date_range_request(request)
         if redirect_url:
