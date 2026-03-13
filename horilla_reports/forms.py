@@ -103,7 +103,13 @@ class ChangeChartReportForm(HorillaModelForm):
             chart_choices = [
                 c
                 for c in chart_choices
-                if c[0] not in ["stacked_vertical", "stacked_horizontal"]
+                if c[0]
+                not in [
+                    "stacked_vertical",
+                    "stacked_horizontal",
+                    "heatmap",
+                    "sankey",
+                ]
             ]
 
         self.fields["chart_type"].choices = chart_choices
