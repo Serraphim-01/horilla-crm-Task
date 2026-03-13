@@ -18,12 +18,18 @@ from horilla.http import safe_url
 
 
 def permission_required_or_denied(
-    perms, template_name="error/403.html", require_all=False, modal=False
+    perms,
+    template_name="403.html",
+    require_all=False,
+    modal=False,
+    embed=None,
 ):
     """
     Custom decorator for both FBVs and CBVs.
     - `perms`: single permission string or a list/tuple of permissions.
     - `require_all`: if True, user must have ALL permissions; if False, ANY one is enough.
+    - `embed`: if True, render 403 as fragment for layout (e.g. #mainSession). If None,
+      embed is auto when request is HTMX and not modal so swapped content fills the target.
     """
 
     if isinstance(perms, str):
@@ -48,9 +54,14 @@ def permission_required_or_denied(
 
             if has_permission:
                 return view_func(*args, **kwargs)
-            return render(
-                request, template_name, {"permissions": perms, "modal": modal}
-            )
+            context = {"permissions": perms, "modal": modal}
+            # HTMX swaps into #mainSession etc.; full error.html breaks layout—use embed fragment.
+            if not modal and (
+                embed is True
+                or (embed is not False and request.META.get("HTTP_HX_REQUEST"))
+            ):
+                context["embed"] = True
+            return render(request, template_name, context)
 
         return _wrapped_view
 
@@ -102,7 +113,7 @@ def htmx_required(view_func=None, login=True):
                 login_url = f"{reverse_lazy('horilla_core:login')}?next={request.path}"
                 return redirect(login_url)
             if not request.headers.get("HX-Request") == "true":
-                return render(request, "error/405.html")
+                return render(request, "405.html")
             return func(request, *args, **kwargs)
 
         return _wrapped_view

@@ -13,6 +13,6 @@
     <div hx-push-url="false" hx-get="{% url 'horilla_core:import_tab_view' %}?{{request.GET.urlencode}}"  hx-trigger="load"></div>
   </div>
 {% else %}
-  {% include 'error/403.html' %}
+  {% include "403.html" with embed=True %}
 {% endif %}
 {% endblock %}
