@@ -27,7 +27,6 @@ from rest_framework_simplejwt.tokens import UntypedToken
 
 # First-party / Horilla imports
 from horilla import settings
-from horilla.auth.models import User
 from horilla.http import (
     FileResponse,
     HttpNotFound,
@@ -196,24 +195,13 @@ class LoginUserView(View):
 
     def post(self, request):
         """
-        Handle login attempt with **two valid methods**:
-        1. Email + Phone number
-        2. Username + Password
+        Handle login attempt
         """
         identifier = request.POST.get("username")
         secret = request.POST.get("password")
         next_url = safe_url(request, request.POST.get("next", "/"))
 
-        user = None
-
-        user_by_email_phone = User.objects.filter(
-            email=identifier, contact_number=secret
-        ).first()
-        if user_by_email_phone:
-            user = user_by_email_phone
-
-        if not user:
-            user = authenticate(request, username=identifier, password=secret)
+        user = authenticate(request, username=identifier, password=secret)
 
         if not user:
             messages.error(
@@ -226,7 +214,6 @@ class LoginUserView(View):
                 request,
                 _("This user is archived or blocked. Please contact support."),
             )
-            # return render(request, "login.html", {"next": next_url})
             return redirect(reverse_lazy("horilla_core:login") + f"?next={next_url}")
 
         login(request, user)
