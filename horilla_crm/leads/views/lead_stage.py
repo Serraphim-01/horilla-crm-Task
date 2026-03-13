@@ -28,8 +28,6 @@ from horilla_core.views.initialiaze_database import InitializeRoleView
 from horilla_crm.leads.filters import LeadStatusFilter
 from horilla_crm.leads.forms import LeadStatusForm  # type: ignore
 from horilla_crm.leads.models import LeadStatus
-
-# Local imports
 from horilla_crm.leads.signals import lead_stage_created
 from horilla_generics.views import (
     HorillaListView,
@@ -39,6 +37,8 @@ from horilla_generics.views import (
     HorillaView,
 )
 from horilla_utils.middlewares import _thread_local
+
+# Local imports
 
 
 class LeadsStageView(LoginRequiredMixin, HorillaView):
@@ -100,7 +100,6 @@ class LeadStageListView(LoginRequiredMixin, HorillaListView):
     bulk_select_option = False
     table_width = False
     enable_sorting = False
-    table_height = False
     table_height_as_class = "h-[calc(_100vh_-_260px_)]"
 
     def get_queryset(self):

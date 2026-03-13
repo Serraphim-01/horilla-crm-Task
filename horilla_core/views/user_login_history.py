@@ -62,7 +62,6 @@ class UserloginHistoryListView(LoginRequiredMixin, HorillaListView):
     bulk_update_option = False
     enable_sorting = False
     table_width = False
-    table_height = False
     table_height_as_class = "h-[500px]"
 
     def get_queryset(self):

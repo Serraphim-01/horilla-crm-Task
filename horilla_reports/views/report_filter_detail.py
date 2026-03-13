@@ -1,7 +1,7 @@
 """Views for filtering and listing report data."""
 
 import logging
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode
 
 # Third-party imports (Django)
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -341,7 +341,6 @@ class ReportDetailFilteredView(LoginRequiredMixin, View):
         list_view.bulk_select_option = False
         list_view.paginate_by = 10
         list_view.list_column_visibility = False
-        list_view.table_height = False
         list_view.table_height_as_class = "h-[200px]"
         if hasattr(report.model_class, "get_detail_url"):
             list_view.col_attrs = self.col_attrs()

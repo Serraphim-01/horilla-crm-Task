@@ -195,7 +195,6 @@ class ForecastTargetListView(LoginRequiredMixin, HorillaListView):
     bulk_select_option = False
     table_width = False
     enable_sorting = False
-    table_height = False
     table_height_as_class = "h-[500px]"
 
     def get_queryset(self):

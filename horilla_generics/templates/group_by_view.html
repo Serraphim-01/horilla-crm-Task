@@ -55,7 +55,7 @@
                     </summary>
                     <div class="group-by-content p-5 h-full">
                         {% if group.items %}
-                        <div class="custom-scroll relative overflow-hidden overflow-y-auto overflow-x-auto {% if table_height %} [h-51vh] [max-h-unset] {% else %} {{ table_height_as_class|default:'max-h-[50vh]' }} {% endif %} [box-shadow:0px_0px_20px_0px_rgb(0_0_0_/_5%)] bg-white rounded-lg max-h-fit z-0 block text-[.8rem]"
+                        <div class="custom-scroll relative overflow-hidden overflow-y-auto overflow-x-auto {% if table_height_as_class %} {{ table_height_as_class|default:'max-h-[50vh]' }} {% endif %} [box-shadow:0px_0px_20px_0px_rgb(0_0_0_/_5%)] bg-white rounded-lg max-h-fit z-0 block text-[.8rem]"
                             id="table-container-{{ view_id|safe }}-{{ group_key|slugify }}">
                             <table class="w-full {% if not table_class %} border-separate border-spacing-0 {% endif %}">
                                 <thead class="sticky top-0 {% if table_class %} bg-primary-300 text-primary-600 {% else %} bg-white text-primary-600 {% endif %} z-50">
