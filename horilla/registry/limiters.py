@@ -1,5 +1,9 @@
+"""Queryset limiters for registry-backed feature configuration."""
+
+# Third-party imports (Django)
 from django.db import models
 
+# First party imports (Horilla)
 from horilla.registry.feature import FEATURE_REGISTRY
 
 
