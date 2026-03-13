@@ -3,22 +3,14 @@
 # Standard library imports
 from urllib.parse import urlencode
 
-# Third-party imports
-from dateutil.relativedelta import relativedelta
-
 # Third-party imports (Django)
-from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db import transaction
-from django.utils import timezone
 from django.utils.functional import cached_property  # type: ignore
-from django.views.generic import FormView
 
-from horilla.http import Http404, HttpResponse, RedirectResponse
-from horilla.shortcuts import get_object_or_404, render
+from horilla.http import RedirectResponse
 
 # First-party / Horilla imports
-from horilla.urls import reverse, reverse_lazy
+from horilla.urls import reverse_lazy
 from horilla.utils.decorators import (
     htmx_required,
     method_decorator,
@@ -28,19 +20,12 @@ from horilla.utils.decorators import (
 from horilla.utils.translation import gettext_lazy as _
 from horilla_activity.views import HorillaActivitySectionView
 from horilla_core.utils import is_owner
-from horilla_crm.accounts.models import Account
-from horilla_crm.contacts.models import Contact, ContactAccountRelationship
 from horilla_crm.leads.filters import LeadFilter
-from horilla_crm.leads.forms import LeadSingleForm  # type: ignore
-from horilla_crm.leads.forms import LeadConversionForm, LeadFormClass
 from horilla_crm.leads.models import Lead, LeadStatus
-from horilla_crm.opportunities.models import (
-    Opportunity,
-    OpportunityContactRole,
-    OpportunityStage,
-)
 from horilla_generics.mixins import RecentlyViewedMixin  # type: ignore
 from horilla_generics.views import (
+    HorillaCardView,
+    HorillaChartView,
     HorillaDetailSectionView,
     HorillaDetailTabView,
     HorillaDetailView,
@@ -48,14 +33,13 @@ from horilla_generics.views import (
     HorillaHistorySectionView,
     HorillaKanbanView,
     HorillaListView,
-    HorillaMultiStepFormView,
     HorillaNavView,
     HorillaNotesAttachementSectionView,
     HorillaRelatedListSectionView,
-    HorillaSingleDeleteView,
-    HorillaSingleFormView,
+    HorillaSplitView,
     HorillaView,
 )
+from horilla_generics.views.timeline import HorillaTimelineView
 from horilla_utils.middlewares import _thread_local
 
 
@@ -68,12 +52,19 @@ class LeadView(LoginRequiredMixin, HorillaView):
     list_url = reverse_lazy("leads:leads_list")
     kanban_url = reverse_lazy("leads:leads_kanban")
     group_by_url = reverse_lazy("leads:leads_group_by")
+    card_url = reverse_lazy("leads:leads_card")
+    split_view_url = reverse_lazy("leads:leads_split_view")
+    chart_url = reverse_lazy("leads:leads_chart")
+    timeline_url = reverse_lazy("leads:leads_timeline")
 
     def dispatch(self, request, *args, **kwargs):
         view_type = request.GET.get("view_type")
         if view_type == "converted_lead" and request.GET.get("layout") in (
             "kanban",
             "group_by",
+            "card",
+            "split_view",
+            "chart",
         ):
             get_params = request.GET.copy()
             get_params.pop("layout", None)
@@ -100,6 +91,10 @@ class LeadNavbar(LoginRequiredMixin, HorillaNavView):
     filterset_class = LeadFilter
     kanban_url = reverse_lazy("leads:leads_kanban")
     group_by_url = reverse_lazy("leads:leads_group_by")
+    card_url = reverse_lazy("leads:leads_card")
+    split_view_url = reverse_lazy("leads:leads_split_view")
+    chart_url = reverse_lazy("leads:leads_chart")
+    timeline_url = reverse_lazy("leads:leads_timeline")
     model_name = "Lead"
     model_app_label = "leads"
     exclude_kanban_fields = "lead_owner"
@@ -291,15 +286,70 @@ class LeadListView(LoginRequiredMixin, HorillaListView):
 
 @method_decorator(htmx_required, name="dispatch")
 @method_decorator(
-    permission_required_or_denied("leads.delete_lead", modal=True), name="dispatch"
+    permission_required_or_denied(["leads.view_lead", "leads.view_own_lead"]),
+    name="dispatch",
 )
-class LeadDeleteView(LoginRequiredMixin, HorillaSingleDeleteView):
-    """Lead Delete View"""
+class LeadCardView(LoginRequiredMixin, HorillaCardView):
+    """Lead Card (tile) view - same data as list in card layout."""
 
     model = Lead
+    view_id = "leads-card"
+    filterset_class = LeadFilter
+    search_url = reverse_lazy("leads:leads_list")
+    main_url = reverse_lazy("leads:leads_view")
+    max_visible_actions = 5
+    enable_quick_filters = True
+    columns = [
+        "title",
+        "first_name",
+        "email",
+        "lead_status",
+        "lead_source",
+    ]
+    actions = LeadListView.actions
 
-    def get_post_delete_response(self):
-        return HttpResponse("<script>htmx.trigger('#reloadButton','click');</script>")
+    @cached_property
+    def col_attrs(self):
+        """Column attributes for lead"""
+        query_params = {}
+        if "section" in self.request.GET:
+            query_params["section"] = self.request.GET.get("section")
+        query_string = urlencode(query_params)
+        return [
+            {
+                "title": {
+                    "hx-get": f"{{get_detail_url}}?{query_string}",
+                    "hx-target": "#mainContent",
+                    "hx-swap": "outerHTML",
+                    "hx-push-url": "true",
+                    "hx-select": "#mainContent",
+                    "permission": "leads.view_lead",
+                    "own_permission": "leads.view_own_lead",
+                    "owner_field": "lead_owner",
+                }
+            }
+        ]
+
+    def no_record_add_button(self):
+        """No record add button for lead"""
+        if self.request.user.has_perm("leads.add_lead") or self.request.user.has_perm(
+            "leads.add_own_lead"
+        ):
+            return {
+                "url": f"""{ reverse_lazy('leads:leads_create')}?new=true""",
+                "attrs": 'id="lead-create"',
+            }
+        return None
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        view_type = self.request.GET.get("view_type") or self.get_default_view_type()
+        if view_type == "converted_lead":
+            queryset = queryset.filter(is_convert=True)
+            self.actions = None
+        else:
+            queryset = queryset.filter(is_convert=False)
+        return queryset
 
 
 @method_decorator(
@@ -472,6 +522,144 @@ class LeadGroupByView(LoginRequiredMixin, HorillaGroupByView):
             queryset = queryset.filter(is_convert=False)
         return queryset
 
+
+@method_decorator(htmx_required, name="dispatch")
+@method_decorator(
+    permission_required_or_denied(["leads.view_lead", "leads.view_own_lead"]),
+    name="dispatch",
+)
+class LeadChartView(LoginRequiredMixin, HorillaChartView):
+    """Lead chart view: counts by group-by field using same filters as list/kanban."""
+
+    model = Lead
+    view_id = "leads-chart"
+    filterset_class = LeadFilter
+    search_url = reverse_lazy("leads:leads_list")
+    main_url = reverse_lazy("leads:leads_view")
+    group_by_field = "lead_status"
+    exclude_kanban_fields = "lead_owner"
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        view_type = self.request.GET.get("view_type") or self.get_default_view_type()
+        if view_type == "converted_lead":
+            queryset = queryset.filter(is_convert=True)
+        else:
+            queryset = queryset.filter(is_convert=False)
+        return queryset
+
+    def build_chart_payload(self, queryset, group_by):
+        """Omit final lead stages from chart (same as LeadGroupByView grouped_items)."""
+        if group_by != "lead_status":
+            return super().build_chart_payload(queryset, group_by)
+
+        from django.db.models import Count
+
+        field = self.model._meta.get_field(group_by)
+        rows = list(
+            queryset.values(group_by).annotate(_count=Count("pk")).order_by("-_count")
+        )
+        labels, data, urls = [], [], []
+        list_url = str(self.search_url) if self.search_url else ""
+
+        for row in rows:
+            key = row[group_by]
+            if key is not None:
+                try:
+                    if LeadStatus.objects.filter(pk=key, is_final=True).exists():
+                        continue
+                except Exception:
+                    pass
+            count = row["_count"]
+            label = self._label_for_group_key(field, key)
+            labels.append(label)
+            data.append(count)
+            if list_url and key is not None:
+                urls.append(self._list_drill_url(group_by, key))
+            else:
+                urls.append("#")
+        return {"labels": labels, "data": data, "urls": urls}, None
+
+    def build_stacked_payload(self, queryset, primary, secondary):
+        """Drop final lead stages from stacked segments when lead_status is an axis."""
+        from django.db.models import Count
+
+        if primary != "lead_status" and secondary != "lead_status":
+            return super().build_stacked_payload(queryset, primary, secondary)
+
+        def is_final_pk(pk):
+            if pk is None:
+                return False
+            try:
+                return LeadStatus.objects.filter(pk=pk, is_final=True).exists()
+            except Exception:
+                return False
+
+        rows = list(
+            queryset.values(primary, secondary).annotate(_count=Count("pk")).order_by()
+        )
+        filtered = []
+        for row in rows:
+            pk, sk = row[primary], row[secondary]
+            if primary == "lead_status" and is_final_pk(pk):
+                continue
+            if secondary == "lead_status" and is_final_pk(sk):
+                continue
+            filtered.append(row)
+        if not filtered:
+            return None, _("No data after excluding final stages.")
+
+        from collections import defaultdict
+
+        field_p = self.model._meta.get_field(primary)
+        field_s = self.model._meta.get_field(secondary)
+        pivot = defaultdict(lambda: defaultdict(int))
+        primary_keys = []
+        secondary_keys_order = []
+        seen_p, seen_s = set(), set()
+        for row in filtered:
+            pk, sk = row[primary], row[secondary]
+            pivot[pk][sk] += row["_count"]
+            if pk not in seen_p:
+                seen_p.add(pk)
+                primary_keys.append(pk)
+            if sk not in seen_s:
+                seen_s.add(sk)
+                secondary_keys_order.append(sk)
+        categories = [self._label_for_group_key(field_p, k) for k in primary_keys]
+        series = []
+        list_url = str(self.search_url) if self.search_url else ""
+        for sk in secondary_keys_order:
+            name = self._label_for_group_key(field_s, sk)
+            row_data = []
+            for pk in primary_keys:
+                v = int(pivot[pk].get(sk, 0))
+                if list_url and v > 0:
+                    row_data.append(
+                        {
+                            "value": v,
+                            "url": self._list_drill_url_two(primary, pk, secondary, sk),
+                        }
+                    )
+                else:
+                    row_data.append(v)
+            series.append({"name": name, "data": row_data})
+        stacked_data = {"categories": categories, "series": series}
+        totals = [sum(pivot[pk].values()) if pivot[pk] else 0 for pk in primary_keys]
+        urls = []
+        if list_url:
+            for pk in primary_keys:
+                val = pk if pk is not None else ""
+                urls.append(self._list_drill_url(primary, val))
+        else:
+            urls = ["#"] * len(categories)
+        return {
+            "stackedData": stacked_data,
+            "labels": categories,
+            "data": totals,
+            "urls": urls,
+        }, None
+
     def no_record_add_button(self):
         """No record add button for lead"""
         if self.request.user.has_perm("leads.add_lead") or self.request.user.has_perm(
@@ -485,47 +673,79 @@ class LeadGroupByView(LoginRequiredMixin, HorillaGroupByView):
 
 
 @method_decorator(htmx_required, name="dispatch")
-class LeadFormView(LoginRequiredMixin, HorillaMultiStepFormView):
-    """Lead Create/Update View"""
+@method_decorator(
+    permission_required_or_denied(["leads.view_lead", "leads.view_own_lead"]),
+    name="dispatch",
+)
+class LeadSplitView(LoginRequiredMixin, HorillaSplitView):
+    """
+    Lead Split view: left = tile list, right = simple details on click.
+    """
 
-    form_class = LeadFormClass
     model = Lead
-    fullwidth_fields = ["requirements"]
-    dynamic_create_fields = ["lead_status"]
-    detail_url_name = "leads:leads_detail"
-    dynamic_create_field_mapping = {
-        "lead_status": {
-            "fields": ["name", "order", "color", "probability"],
-            "initial": {
-                "order": LeadStatus.get_next_order_for_company,
-            },
-        },
-    }
+    view_id = "leads-split"
+    filterset_class = LeadFilter
+    search_url = reverse_lazy("leads:leads_list")
+    main_url = reverse_lazy("leads:leads_view")
+    enable_quick_filters = True
+    list_column_visibility = False
+    split_view_permission = "leads.view_lead"
+    split_view_own_permission = "leads.view_own_lead"
+    split_view_owner_field = "lead_owner"
 
-    single_step_url_name = {
-        "create": "leads:leads_create_single",
-        "edit": "leads:leads_edit_single",
-    }
+    columns = [
+        "title",
+        "lead_status",
+    ]
 
-    @cached_property
-    def form_url(self):
-        """Form URL for lead"""
-        pk = self.kwargs.get("pk") or self.request.GET.get("id")
-        if pk:
-            return reverse_lazy("leads:leads_edit", kwargs={"pk": pk})
-        return reverse_lazy("leads:leads_create")
+    no_record_add_button = LeadListView.no_record_add_button
+    actions = LeadListView.actions
 
-    step_titles = {
-        "1": _("Basic Information"),
-        "2": _("Company Details"),
-        "3": _("Location"),
-        "4": _("Requirements"),
-    }
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        view_type = self.request.GET.get("view_type") or self.get_default_view_type()
+        if view_type == "converted_lead":
+            queryset = queryset.filter(is_convert=True)
+            self.actions = None
+            self.no_record_add_button = False
+            self.no_record_msg = "Not found coverted leads"
+            self.bulk_update_option = False
+        else:
+            queryset = queryset.filter(is_convert=False)
+        return queryset
 
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["request"] = self.request
-        return kwargs
+
+@method_decorator(
+    permission_required_or_denied(["leads.view_lead", "leads.view_own_lead"]),
+    name="dispatch",
+)
+class LeadTimelineView(LoginRequiredMixin, HorillaTimelineView):
+    """Timeline from created_at to updated_at; rows by lead_status."""
+
+    model = Lead
+    view_id = "leads-timeline"
+    filterset_class = LeadFilter
+    search_url = reverse_lazy("leads:leads_list")
+    main_url = reverse_lazy("leads:leads_view")
+    enable_quick_filters = True
+    timeline_start_field = "created_at"
+    timeline_end_field = "updated_at"
+    timeline_group_by_field = "lead_status"
+    timeline_title_field = "title"
+    columns = ["title", "first_name", "email", "lead_status"]
+    actions = LeadListView.actions
+
+    col_attrs = LeadListView.col_attrs
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        view_type = self.request.GET.get("view_type") or self.get_default_view_type()
+        if view_type == "converted_lead":
+            queryset = queryset.filter(is_convert=True)
+            self.actions = None
+        else:
+            queryset = queryset.filter(is_convert=False)
+        return queryset
 
 
 @method_decorator(
@@ -777,274 +997,3 @@ class LeadRelatedLists(LoginRequiredMixin, HorillaRelatedListSectionView):
         }
 
     excluded_related_lists = ["lead_campaign_members"]
-
-
-@method_decorator(htmx_required, name="dispatch")
-class LeadsSingleFormView(LoginRequiredMixin, HorillaSingleFormView):
-    """Lead Create/Update Single Page View"""
-
-    model = Lead
-    form_class = LeadSingleForm
-    full_width_fields = ["requirements"]
-    dynamic_create_fields = ["lead_status"]
-    dynamic_create_field_mapping = {
-        "lead_status": {
-            "fields": ["name", "order", "color", "probability", "is_final"],
-            "initial": {
-                "order": LeadStatus.get_next_order_for_company,
-            },
-        },
-    }
-
-    multi_step_url_name = {"create": "leads:leads_create", "edit": "leads:leads_edit"}
-    detail_url_name = "leads:leads_detail"
-
-    @cached_property
-    def form_url(self):
-        """Form URL for lead"""
-        pk = self.kwargs.get("pk") or self.request.GET.get("id")
-        if pk:
-            return reverse_lazy("leads:leads_edit_single", kwargs={"pk": pk})
-        return reverse_lazy("leads:leads_create_single")
-
-
-@method_decorator(htmx_required, name="dispatch")
-class LeadChangeOwnerForm(LoginRequiredMixin, HorillaSingleFormView):
-    """
-    change owner form for lead
-    """
-
-    model = Lead
-    fields = ["lead_owner"]
-    full_width_fields = ["lead_owner"]
-    modal_height = False
-    form_title = _("Change Owner")
-
-    @cached_property
-    def form_url(self):
-        """Form URL for lead change owner"""
-        pk = self.kwargs.get("pk") or self.request.GET.get("id")
-        if pk:
-            return reverse_lazy("leads:lead_change_owner", kwargs={"pk": pk})
-        return None
-
-
-@method_decorator(htmx_required, name="dispatch")
-class LeadConversionView(LoginRequiredMixin, FormView):
-    """View to handle lead conversion to account, contact, and opportunity."""
-
-    template_name = "lead_convert.html"
-    form_class = LeadConversionForm
-
-    def dispatch(self, request, *args, **kwargs):
-        try:
-            self.lead = Lead.objects.get(pk=self.kwargs["pk"])
-        except Exception as e:
-            messages.error(self.request, str(e))
-            return HttpResponse(
-                "<script>$('#reloadButton').click();closeContentModal();</script>"
-            )
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_success_url(self):
-        return reverse("leads:leads_detail", kwargs={"pk": self.lead.pk})
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["lead"] = self.lead
-
-        # Get selected account for filtering opportunities
-        selected_account_id = self.request.GET.get("existing_account")
-        if selected_account_id:
-            try:
-                kwargs["selected_account"] = Account.objects.get(pk=selected_account_id)
-            except Account.DoesNotExist:
-                pass
-
-        return kwargs
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["lead"] = self.lead
-        context["account_action"] = self.request.GET.get(
-            "account_action", self.get_initial().get("account_action", "create_new")
-        )
-        context["contact_action"] = self.request.GET.get(
-            "contact_action", self.get_initial().get("contact_action", "create_new")
-        )
-        context["opportunity_action"] = self.request.GET.get(
-            "opportunity_action",
-            self.get_initial().get("opportunity_action", "create_new"),
-        )
-        context["selected_account_id"] = self.request.GET.get("existing_account")
-        return context
-
-    def get(self, request, *args, **kwargs):
-        pk = self.kwargs.get("pk")
-        if pk:
-            try:
-                lead = get_object_or_404(Lead, pk=pk)
-            except Http404:
-                messages.error(request, "Lead not found or no longer exists.")
-                return HttpResponse(
-                    "<script>$('#reloadButton').click();closeModal();</script>"
-                )
-
-            if lead.lead_owner != request.user and not request.user.has_perm(
-                "leads.change_lead"
-            ):
-                return render(request, "error/403.html")
-
-        if "HTTP_HX_REQUEST" in request.META:
-            hx_target = request.META.get("HTTP_HX_TARGET", "").replace("#", "")
-
-            if "existing_account" in request.GET and hx_target == "opportunity-field":
-                context = self.get_context_data()
-                return render(request, "lead_convert_opportunity.html", context)
-
-            if hx_target:
-                action = request.GET.get(f"{hx_target}_action", "create_new")
-                context = self.get_context_data()
-                context[f"{hx_target}_action"] = action
-                if hx_target == "account-field":
-                    return render(request, "lead_convert_account.html", context)
-                if hx_target == "contact-field":
-                    return render(request, "lead_convert_contact.html", context)
-                if hx_target == "opportunity-field":
-                    return render(request, "lead_convert_opportunity.html", context)
-
-        return super().get(request, *args, **kwargs)
-
-    def form_valid(self, form):
-        with transaction.atomic():
-            try:
-                lead_status = LeadStatus.objects.filter(is_final=True).first()
-                company = getattr(self.request, "active_company", None)
-                account = self._process_account(form, company)
-                contact = self._process_contact(form, account, company)
-                opportunity = self._process_opportunity(form, account, contact, company)
-
-                # Update only the Lead's conversion status
-                self.lead.is_convert = True
-                self.lead.updated_at = timezone.now()
-                self.lead.lead_status = lead_status
-                self.lead.save()
-
-                messages.success(
-                    self.request,
-                    f'Lead "{self.lead.title}" has been successfully converted!',
-                )
-                self.conversion_data = {
-                    "account": account,
-                    "contact": contact,
-                    "opportunity": opportunity,
-                    "lead": self.lead,
-                }
-            except Exception as e:
-                messages.error(self.request, f"Error converting lead: {str(e)}")
-                return self.form_invalid(form)
-
-        response = super().form_valid(form)
-        if "HTTP_HX_REQUEST" in self.request.META:
-            return self._render_success_modal()
-        return response
-
-    def _render_success_modal(self):
-        """Render the success modal with conversion data"""
-        context = {
-            "account": self.conversion_data["account"],
-            "contact": self.conversion_data["contact"],
-            "opportunity": self.conversion_data["opportunity"],
-            "lead": self.conversion_data["lead"],
-        }
-        return render(self.request, "lead_convert_success_modal.html", context)
-
-    def _process_account(self, form, company):
-        if form.cleaned_data["account_action"] == "create_new":
-            return Account.objects.create(
-                name=form.cleaned_data["account_name"],
-                account_owner=form.cleaned_data.get("owner"),
-                phone=self.lead.contact_number,
-                annual_revenue=self.lead.annual_revenue,
-                industry=self.lead.industry,
-                number_of_employees=self.lead.no_of_employees,
-                fax=self.lead.fax,
-                account_source=self.lead.lead_source,
-                company=company,
-            )
-        return form.cleaned_data["existing_account"]
-
-    def _process_contact(self, form, account, company):
-        if form.cleaned_data["contact_action"] == "create_new":
-            contact = Contact.objects.create(
-                first_name=form.cleaned_data["first_name"],
-                last_name=form.cleaned_data["last_name"],
-                email=self.lead.email,
-                phone=self.lead.contact_number,
-                contact_owner=form.cleaned_data.get("owner"),
-                company=company,
-            )
-            ContactAccountRelationship.objects.get_or_create(
-                contact=contact, account=account, company=company
-            )
-            return contact
-        contact = form.cleaned_data["existing_contact"]
-        relationship, created = ContactAccountRelationship.objects.get_or_create(
-            contact=contact, defaults={"account": account}, company=company
-        )
-        if not created and relationship.account != account:
-            relationship.account = account
-            relationship.save()
-        return contact
-
-    def _process_opportunity(self, form, account, contact, company):
-        if form.cleaned_data["opportunity_action"] == "create_new":
-            first_stage = OpportunityStage.objects.filter(order=1).first()
-            campaign_member = self.lead.lead_campaign_members.first()
-            closed_date = timezone.now().date() + relativedelta(months=1)
-            opportunity = Opportunity.objects.create(
-                name=form.cleaned_data["opportunity_name"],
-                account=account,
-                owner=self.lead.lead_owner,
-                stage=first_stage,
-                primary_campaign_source=(
-                    campaign_member.campaign if campaign_member else None
-                ),
-                close_date=closed_date,
-                company=company,
-            )
-            OpportunityContactRole.objects.get_or_create(
-                opportunity=opportunity,
-                contact=contact,
-                defaults={"is_primary": True},
-                company=company,
-            )
-            return opportunity
-        opportunity = form.cleaned_data["existing_opportunity"]
-        if opportunity.account != account:
-            opportunity.account = account
-        role, created = OpportunityContactRole.objects.get_or_create(
-            opportunity=opportunity,
-            contact=contact,
-            defaults={"is_primary": True},
-            company=company,
-        )
-        if not created and role.contact != contact:
-            role.contact = contact
-            role.save()
-        opportunity.save()
-        return opportunity
-
-    def get_initial(self):
-        return {
-            "account_action": "create_new",
-            "contact_action": "create_new",
-            "opportunity_action": "create_new",
-        }
-
-    def form_invalid(self, form):
-        if "HTTP_HX_REQUEST" in self.request.META:
-            # Re-render the entire form with errors for HTMX requests
-            context = self.get_context_data(form=form)
-            return render(self.request, self.template_name, context)
-        return super().form_invalid(form)

@@ -9,9 +9,17 @@ urlpatterns = [
     path("leads-view/", views.LeadView.as_view(), name="leads_view"),
     path("leads-nav/", views.LeadNavbar.as_view(), name="leads_nav"),
     path("leads-list/", views.LeadListView.as_view(), name="leads_list"),
+    path("leads-card/", views.LeadCardView.as_view(), name="leads_card"),
+    path(
+        "leads-layout-split/",
+        views.LeadSplitView.as_view(),
+        name="leads_split_view",
+    ),
     path("leads-delete/<int:pk>/", views.LeadDeleteView.as_view(), name="leads_delete"),
     path("leads-kanban/", views.LeadKanbanView.as_view(), name="leads_kanban"),
     path("leads-group-by/", views.LeadGroupByView.as_view(), name="leads_group_by"),
+    path("leads-chart/", views.LeadChartView.as_view(), name="leads_chart"),
+    path("leads-timeline/", views.LeadTimelineView.as_view(), name="leads_timeline"),
     path("leads-create/", views.LeadFormView.as_view(), name="leads_create"),
     path("leads-detail/<int:pk>/", views.LeadDetailView.as_view(), name="leads_detail"),
     path(
