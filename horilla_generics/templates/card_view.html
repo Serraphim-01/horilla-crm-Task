@@ -35,7 +35,7 @@
     {% if queryset %}
         <div id="card-scroll-container-{{ view_id }}" class="custom-scroll relative overflow-y-auto h-[calc(100vh_-_210px)] bg-white rounded-lg z-0" style="overflow-anchor: auto;">
             <div id="data-container-{{ view_id }}"
-                 class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4"
+                 class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-[#e9edf0ba]"
                  data-view-id="{{ view_id }}">
                 {% include "partials/card_view_cards.html" %}
             </div>
