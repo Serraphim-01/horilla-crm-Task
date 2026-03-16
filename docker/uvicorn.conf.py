@@ -1,48 +1,41 @@
-# Uvicorn configuration for Horilla-CRM
-# This file is invoked directly: python docker/uvicorn.conf.py
-# Mirrors the gunicorn.conf.py pattern used in Horilla-HR
+# Uvicorn configuration reference for Horilla-CRM
+#
+# Unlike Gunicorn (used in Horilla-HR), Uvicorn does not support a --config file.
+# These values are passed as CLI arguments in the Dockerfile CMD instead.
+# This file documents the configuration for reference and environment overrides.
+#
+# To override at runtime, set environment variables:
+#   UVICORN_WORKERS=4
+#   UVICORN_LOG_LEVEL=warning
+#   UVICORN_RELOAD=true
 
 import multiprocessing
 import os
 
-import uvicorn
-
 # Bind settings
-host = os.environ.get("UVICORN_HOST", "0.0.0.0")
-port = int(os.environ.get("UVICORN_PORT", "8000"))
+HOST = os.environ.get("UVICORN_HOST", "0.0.0.0")
+PORT = int(os.environ.get("UVICORN_PORT", "8000"))
 
-# Worker settings
-workers = int(
+# Worker settings — matches Gunicorn formula: max(2, min(CPU*2+1, 8))
+WORKERS = int(
     os.environ.get(
         "UVICORN_WORKERS", max(2, min(multiprocessing.cpu_count() * 2 + 1, 8))
     )
 )
 
 # Logging
-log_level = os.environ.get("UVICORN_LOG_LEVEL", "info")
+LOG_LEVEL = os.environ.get("UVICORN_LOG_LEVEL", "info")
 
 # Development settings
-reload = os.environ.get("UVICORN_RELOAD", "false").lower() == "true"
+RELOAD = os.environ.get("UVICORN_RELOAD", "false").lower() == "true"
 
 # WebSocket settings (CRM uses Django Channels for real-time notifications)
-ws_ping_interval = 20
-ws_ping_timeout = 20
+WS_PING_INTERVAL = 20
+WS_PING_TIMEOUT = 20
 
-# ASGI lifespan
-lifespan = "on"
+# ASGI lifespan — "off" because Django Channels' ProtocolTypeRouter
+# does not handle the "lifespan" scope type
+LIFESPAN = "off"
 
 # Process naming
-proc_name = "horilla-crm"
-
-if __name__ == "__main__":
-    uvicorn.run(
-        "horilla.asgi:application",
-        host=host,
-        port=port,
-        workers=workers,
-        log_level=log_level,
-        reload=reload,
-        ws_ping_interval=ws_ping_interval,
-        ws_ping_timeout=ws_ping_timeout,
-        lifespan=lifespan,
-    )
+PROC_NAME = "horilla-crm"
