@@ -200,6 +200,30 @@ class DefaultDashboardGenerator:
 
     extra_models = []
 
+    KPI_COLOR_STYLES = {
+        "primary": {"bg": "#FEF6F5", "icon": "#E54F38"},
+        "secondary": {"bg": "#f1f5f9", "icon": "#334155"},
+        "success": {"bg": "#dcfce7", "icon": "#15803d"},
+        "green": {"bg": "#dcfce7", "icon": "#15803d"},
+        "warning": {"bg": "#fef3c7", "icon": "#b45309"},
+        "yellow": {"bg": "#fef3c7", "icon": "#b45309"},
+        "danger": {"bg": "#fee2e2", "icon": "#b91c1c"},
+        "red": {"bg": "#fee2e2", "icon": "#b91c1c"},
+        "blue": {"bg": "#dbeafe", "icon": "#2563eb"},
+        "indigo": {"bg": "#e0e7ff", "icon": "#4f46e5"},
+        "purple": {"bg": "#f3e8ff", "icon": "#7e22ce"},
+        "teal": {"bg": "#ccfbf1", "icon": "#0f766e"},
+        "orange": {"bg": "#ffedd5", "icon": "#c2410c"},
+        "gray": {"bg": "#f3f4f6", "icon": "#4b5563"},
+        "slate": {"bg": "#f1f5f9", "icon": "#334155"},
+    }
+
+    @classmethod
+    def resolve_kpi_color_style(cls, color_name):
+        """Map KPI color keyword to stable bg/icon hex colors."""
+        key = (color_name or "").strip().lower()
+        return cls.KPI_COLOR_STYLES.get(key, cls.KPI_COLOR_STYLES["primary"])
+
     def __init__(
         self, user, company=None, date_range=None, date_from=None, date_to=None
     ):
@@ -329,6 +353,9 @@ class DefaultDashboardGenerator:
                         "value": count,
                         "icon": model_info["icon"],
                         "color": model_info["color"],
+                        "color_style": self.resolve_kpi_color_style(
+                            model_info.get("color")
+                        ),
                         "url": section_info["url"],
                         "section": section_info["section"],
                         "type": "count",
