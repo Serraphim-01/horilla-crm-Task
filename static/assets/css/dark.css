@@ -47,6 +47,12 @@ body.dark .module-card
 {
   background-color: #2f2f2f !important;
 }
+
+/* Select2: highlighted (hover) option in dark mode */
+body.dark .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+  background-color: color-mix(in srgb, var(--menu-arrow-fg, #E54F38) 18%, #2f2f2f) !important;
+  color: rgb(255 255 255 / 95%) !important;
+}
 body.dark .header{
   background: transparent;
 }
@@ -136,6 +142,7 @@ body.dark .dropdown-content a:hover {
 }
 body.dark button.text-gray-500 img,
 body.dark #profile-edit-btn img,
+body.dark img.my-profile-edit-icon,
 body.dark #navBar img,
 body.dark .bg-dark-25 img,
 body.dark #dropdownLeftEndButton img,
@@ -158,6 +165,14 @@ body.dark .cursor-pointer img {
 body.dark .svg-themed,
 body.dark button .svg-themed,
 body.dark button.cursor-pointer .svg-themed {
+  /* Allow theme-driven hue/saturation filters in dark mode */
+  filter: var(--svg-filter, contrast(1.1) saturate(1.3) hue-rotate(var(--svg-hue, 345deg))) !important;
+}
+/* Keep real profile/sidebar avatar colors in dark mode */
+body.dark img.header-profile-avatar,
+body.dark img.settings-sidebar-avatar,
+body.dark .cursor-pointer img.header-profile-avatar,
+body.dark .cursor-pointer img.settings-sidebar-avatar {
   filter: none !important;
 }
 body.dark #settings-sidebar .border-t:first-child {
@@ -171,15 +186,17 @@ body.dark .bg-primary-300 {
   background-color: #3f3f3f !important;
 }
 
-/* Split view: override active tile colors in dark theme */
-body.dark {
-  --split-view-active-bg: #3f3f3f;     /* darker background */
-  --split-view-active-border: #f07a6a; /* lighter primary accent */
-}
-
 /* Split view: tile hover in dark theme */
 body.dark #split-view-tiles .split-view-tile:hover {
   background-color: #3f3f3f !important;
+}
+/* Split view: keep active tile colors from theme variables in dark mode */
+body.dark #split-view-tiles .split-view-tile.split-view-tile-active {
+  background-color: var(--split-view-active-bg, #3f3f3f) !important;
+  border-left-color: var(--split-view-active-border, #E54F38) !important;
+}
+body.dark #split-view-tiles .split-view-tile.split-view-tile-active .split-view-tile-name {
+  color: var(--split-view-active-border, #E54F38) !important;
 }
 body.dark .canvas-wrap {
   background: #6a6a6a;
@@ -188,18 +205,20 @@ body.dark .member-view-box {
   background-color: #252525;
 }
 body.dark .fc .fc-daygrid-day.fc-day-today {
-  background-color: rgb(96 96 96) !important;
-  color: #ffffff !important;
+  background-color: var(--calendar-today-bg, rgb(96 96 96)) !important;
+  color: var(--calendar-today-fg, #ffffff) !important;
 }
 body.dark .bg-\[\#ffefed\],
 body.dark .bg-\[\#f3f4f6\] {
   background-color: rgb(82 82 82) !important;
 }
 body.dark .probar li .bg-primary-400 {
-  background-color: #e54f384f;
+  /* Use current theme primary accent instead of hard-coded coral */
+  background-color: color-mix(in srgb, var(--split-view-active-border, #E54F38) 30%, transparent) !important;
 }
 body.dark .probar li .hover\:bg-primary-600:hover {
-  background-color: #e54f38;
+  /* Keep hover accent aligned with current theme */
+  background-color: var(--split-view-active-border, #E54F38) !important;
 }
 body.dark .probar li .hover\:bg-\[\#838181\]:hover {
   background-color: #5d5d5d !important;
@@ -213,8 +232,41 @@ body.dark .black{
 body.dark .text-red-500{
   color: red !important;
 }
+/* Status pills (e.g., Opportunity Won/Lost) should remain visible in dark mode */
+body.dark .bg-green-100 {
+  background-color: #14532d !important;
+}
+body.dark .text-green-800 {
+  color: #86efac !important;
+}
+body.dark .bg-red-100 {
+  background-color: #7f1d1d !important;
+}
+body.dark .text-red-800 {
+  color: #fca5a5 !important;
+}
+body.dark .bg-yellow-100 {
+  background-color: #713f12 !important;
+}
+body.dark .text-yellow-800 {
+  color: #fde68a !important;
+}
 body.dark .bg-\[\#efefef96\] {
   background-color: #5c5c5c96;
+}
+/* Forecast table: keep user rows readable in dark mode */
+body.dark #forecast-table .user-details-row td,
+body.dark #forecast-table .user-details-row td.bg-gray-50 {
+  background-color: #2f2f2f !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  border-color: #565656 !important;
+}
+body.dark #forecast-table .user-details-row td.sticky {
+  background-color: #383838 !important;
+}
+/* User-row achievement bar track must be visible in dark mode */
+body.dark #forecast-table .user-details-row .bg-gray-200 {
+  background-color: #565656 !important;
 }
 body.dark #calendarPreviewModal .text-primary-600{
   background-color: black !important;
@@ -223,12 +275,12 @@ body.dark .bg-\[\#e6fff5\]{
   background-color: #525252;
 }
 body.dark .bg-\[\#e6fff5\]:hover, body.dark .bg-\[\#ffefed\]:hover{
-  color: #e54f38 !important;
+  color: var(--menu-arrow-fg, #E54F38) !important;
 }
 
-/* Group-by view: container and cards in dark theme */
-body.dark .bg-\[\#e9edf0ba\] {
-  background-color: #1e1e1e !important;
+/* Surface (kanban/group-by): dark mode override */
+body.dark .bg-surface {
+  background-color: #2f2f2f !important;
 }
 body.dark .group-by-details {
   border-color: #565656 !important;
@@ -238,10 +290,23 @@ body.dark .group-by-header-band {
   border-color: #565656 !important;
 }
 body.dark .group-by-details .group-by-summary span.text-primary-600 {
-  color: #f07a6a !important;
+  color: var(--menu-arrow-fg, #E54F38) !important;
 }
 body.dark .group-by-details .group-by-summary .fa-chevron-down {
-  color: #f07a6a !important;
+  color: var(--menu-arrow-fg, #E54F38) !important;
+}
+
+/* Timeline view: make pills + active group label use theme colors in dark mode */
+body.dark .timeline-bar {
+  background-color: var(--timeline-pill-bg, #2f2f2f) !important;
+  color: var(--timeline-pill-fg, #E54F38) !important;
+}
+body.dark .js-timeline-left-group.text-primary-600 {
+  color: var(--timeline-pill-fg, #E54F38) !important;
+}
+body.dark .js-timeline-left-group.text-primary-600 span {
+  /* Override global `body.dark span { color: ... !important; }` */
+  color: var(--timeline-pill-fg, #E54F38) !important;
 }
 
 /* Calendar: dark theme variables so year/month view cells and text are visible */
@@ -273,18 +338,18 @@ body.dark #popupContent .grid > div:not(.text-primary-600) {
 }
 /* Labels: keep primary-600 color in dark theme (same as white theme) */
 body.dark #popupContent .text-primary-600 {
-  color: #f07a6a !important;
+  color: var(--menu-arrow-fg, #E54F38) !important;
 }
 body.dark #popupContent h5.bg-primary-300 {
   background-color: #3f3f3f !important;
-  color: #f07a6a !important;
+  color: var(--menu-arrow-fg, #E54F38) !important;
 }
 body.dark #popupContent button.bg-primary-100 {
   background-color: #3f3f3f !important;
   border-color: #565656 !important;
-  color: #e54f38 !important;
+  color: var(--menu-arrow-fg, #E54F38) !important;
 }
 body.dark #popupContent button.bg-primary-100:hover {
   background-color: #4a3f3f !important;
-  color: #f07a6a !important;
+  color: var(--menu-arrow-fg, #E54F38) !important;
 }

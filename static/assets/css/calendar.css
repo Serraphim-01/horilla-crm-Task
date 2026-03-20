@@ -25,10 +25,10 @@
 }
 .fc .fc-daygrid-more-link:hover {
   background-color: unset;
-  color: #ad5a01;
+  color: var(--menu-arrow-fg, #e54f38);
 }
 .fc-direction-ltr .fc-daygrid-more-link {
-  color: #ff8708;
+  color: var(--menu-arrow-fg, #e54f38);
   font-size: 0.7rem;
   top: 10px;
   transition: 0.3s;
@@ -39,7 +39,7 @@
 }
 .fc a[data-navlink]:hover {
   text-decoration: underline;
-  color: #e54f38;
+  color: var(--menu-arrow-fg, #e54f38);
 }
 .fc-daygrid-dot-event.fc-event-mirror,
 .fc-daygrid-dot-event {
@@ -57,15 +57,15 @@
 }
 .fc-theme-standard .fc-popover-header {
   background: #fff0ea;
-  color: #e54f38;
+  color: var(--menu-arrow-fg, #e54f38);
   font-size: 0.85rem;
   font-weight: 600;
   padding: 8px 13px;
   border-radius: 5px 5px 0 0;
 }
 .fc .fc-daygrid-day.fc-day-today {
-  background-color: rgb(229 79 56 / 10%);
-  color: #e54f38;
+  background-color: var(--calendar-today-bg, rgb(229 79 56 / 10%));
+  color: var(--calendar-today-fg, #e54f38);
 }
 #calendarPopup {
   width: 230px;
@@ -117,11 +117,11 @@
 
 .fc .fc-multimonth-title {
   font-size: 1rem;
-  color: #e54f38;
+  color: var(--menu-arrow-fg, #e54f38);
   font-weight: 600;
   padding: 8px 0;
 }
 .fc .fc-daygrid-day.fc-day-today {
-    background-color: #fcedeb;
-    color: #e54f38;
+    background-color: var(--calendar-today-bg, #fcedeb);
+    color: var(--calendar-today-fg, #e54f38);
 }

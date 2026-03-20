@@ -187,7 +187,7 @@
                         <img
                         src="{% if request.user.profile %}{{ request.user.profile.url }}{% else %}{{ request.user.get_avatar }}{% endif %}"
                         alt="{{ request.user.first_name|default:request.user.username }}"
-                        class="w-8 h-8 md:w-11 md:h-11 rounded-full"
+                        class="header-profile-avatar w-8 h-8 md:w-11 md:h-11 rounded-full"
                         />
                     </div>
                     <div class="hidden sm:block">
