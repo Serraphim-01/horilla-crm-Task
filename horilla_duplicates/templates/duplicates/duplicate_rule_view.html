@@ -1,0 +1,16 @@
+{% extends "settings/settings.html" %}
+{% load static %}
+{% load i18n %}
+{% load horilla_tags %}
+
+{% block settings %}
+    {% has_perm "horilla_duplicates.view_duplicaterule" as can_view_duplicate_rules %}
+    {% if can_view_duplicate_rules %}
+        <div id="duplicate-rule-view">
+            <div id="navBar" hx-get="{{ nav_url}}?{{request.GET.urlencode}}" hx-trigger="load"></div>
+            <div id="mainSession" hx-get="{{ list_url }}?{{request.GET.urlencode}}" hx-trigger="load"></div>
+        </div>
+    {% else %}
+        {% include "error/403.html" %}
+    {% endif %}
+{% endblock %}
