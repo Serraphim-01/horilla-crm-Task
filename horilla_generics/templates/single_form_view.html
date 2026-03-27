@@ -262,6 +262,8 @@
                     {% endfor %}
                 </div>
 
+                {% block extra_form_content %}{% endblock %}
+
                 <!-- Condition Fields Section -->
                 {% if condition_fields %}
                     <label class="text-xs font-semibold text-color-600 pb-2">{% if condition_fields_tiltle %} {{condition_fields_tiltle}}  {% else %} {% trans 'Conditions' %} {% endif %}</label>
@@ -362,6 +364,8 @@
                     </button>
                     {% endif %}
                 {% endif %}
+
+                {% block extra_form_content_after_conditions %}{% endblock %}
             </div>
         </div>
         {% if view.get_button_html %}
