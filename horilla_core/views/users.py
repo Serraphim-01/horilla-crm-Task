@@ -615,6 +615,36 @@ class UserDeleteView(LoginRequiredMixin, HorillaSingleDeleteView):
     def get_post_delete_response(self):
         """Get the response after deleting a user."""
         return HttpResponse("<script>htmx.trigger('#reloadButton','click');</script>")
+    
+    def delete(self, request, *args, **kwargs):
+        """Handle user deletion with proper error handling and dependency cleanup."""
+        try:
+            self.object = self.get_object()
+            user = self.object
+            
+            # Delete dependent records that have PROTECT constraint
+            # These are user preferences/settings that should be cleaned up
+            from horilla_core.models import DetailFieldVisibility, TimelineSpanBy
+            
+            # Delete user's field visibility preferences
+            DetailFieldVisibility.objects.filter(user=user).delete()
+            
+            # Delete user's timeline span settings
+            TimelineSpanBy.objects.filter(user=user).delete()
+            
+            # Now proceed with normal deletion
+            return super().delete(request, *args, **kwargs)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error deleting user: {str(e)}")
+            messages.error(
+                request, 
+                f"Error deleting user: {str(e)}. The user may have dependent records that need to be reassigned or deleted first."
+            )
+            return HttpResponse(
+                "<script>$('#reloadButton').click();$('#reloadMessagesButton').click();closeDeleteModeModal();</script>"
+            )
 
 
 class UserDetailView(RecentlyViewedMixin, LoginRequiredMixin, HorillaDetailView):

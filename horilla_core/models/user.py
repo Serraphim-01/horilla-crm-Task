@@ -305,6 +305,8 @@ class HorillaUser(AbstractUser):
         from django.conf import settings
         from horilla_core.models import Company
         from horilla_mail.models import HorillaMailConfiguration
+        from horilla_mail.horilla_backends import HorillaDefaultMailBackend
+        from horilla_utils.middlewares import _thread_local
         
         if not self.email:
             return False, "User has no email address"
@@ -340,7 +342,12 @@ class HorillaUser(AbstractUser):
         plain_message = strip_tags(html_message)
         
         try:
-            # Send email
+            # Store request in thread local for the email backend to access
+            old_request = getattr(_thread_local, 'request', None)
+            if request:
+                _thread_local.request = request
+            
+            # Send email using the Horilla backend
             email = EmailMessage(
                 subject=f"Your {context['site_name']} Account Credentials",
                 body=plain_message,
@@ -350,10 +357,29 @@ class HorillaUser(AbstractUser):
             
             email.content_subtype = "html"
             email.body = html_message
+            
+            # Use the Horilla email backend explicitly
+            backend = HorillaDefaultMailBackend(fail_silently=False)
+            email.connection = backend
+            
+            # Explicitly open the connection
+            backend.open()
             email.send(fail_silently=False)
+            
+            # Restore old request
+            if old_request:
+                _thread_local.request = old_request
+            elif hasattr(_thread_local, 'request'):
+                del _thread_local.request
             
             return True, f"Credentials email sent successfully to {self.email}"
         except Exception as e:
+            # Restore old request even on error
+            if old_request:
+                _thread_local.request = old_request
+            elif hasattr(_thread_local, 'request'):
+                del _thread_local.request
+            
             return False, f"Failed to send credentials email: {str(e)}"
 
     def super_user_action_col(self):

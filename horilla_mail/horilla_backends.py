@@ -51,7 +51,7 @@ class HorillaDefaultMailBackend(EmailBackend):
         username=None,
         password=None,
         use_tls=None,
-        fail_silently=None,
+        fail_silently=False,  # Changed default to False to catch errors
         use_ssl=None,
         timeout=None,
         ssl_keyfile=None,
@@ -77,7 +77,7 @@ class HorillaDefaultMailBackend(EmailBackend):
                 username=self.dynamic_username,
                 password=self.dynamic_password,
                 use_tls=self.dynamic_use_tls,
-                fail_silently=self.dynamic_fail_silently,
+                fail_silently=fail_silently,  # Use the parameter, not from config
                 use_ssl=self.dynamic_use_ssl,
                 timeout=self.dynamic_timeout,
                 ssl_keyfile=ssl_keyfile,
@@ -92,8 +92,7 @@ class HorillaDefaultMailBackend(EmailBackend):
                 username=username or getattr(settings, "EMAIL_HOST_USER", None),
                 password=password or getattr(settings, "EMAIL_HOST_PASSWORD", None),
                 use_tls=use_tls or getattr(settings, "EMAIL_USE_TLS", None),
-                fail_silently=fail_silently
-                or getattr(settings, "EMAIL_FAIL_SILENTLY", True),
+                fail_silently=fail_silently,  # Use the parameter
                 use_ssl=use_ssl or getattr(settings, "EMAIL_USE_SSL", None),
                 timeout=timeout or getattr(settings, "EMAIL_TIMEOUT", None),
                 ssl_keyfile=ssl_keyfile,
@@ -169,7 +168,20 @@ class HorillaDefaultMailBackend(EmailBackend):
 
         if self.configuration and self.configuration.type == "outlook":
             return self._send_outlook_messages(email_messages)
-        return super().send_messages(email_messages)
+        
+        # For SMTP, ensure connection is open and handle errors properly
+        try:
+            # Open connection if not already open
+            if not self.connection:
+                self.open()
+            
+            # Send messages using parent class
+            return super().send_messages(email_messages)
+        except Exception as e:
+            logger.error(f"Error sending email via SMTP: {str(e)}")
+            if not self.fail_silently:
+                raise
+            return 0
 
     def _send_outlook_messages(self, email_messages):
         """Send messages using Microsoft Graph API"""

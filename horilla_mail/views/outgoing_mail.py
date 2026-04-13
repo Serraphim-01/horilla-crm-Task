@@ -228,6 +228,9 @@ class MailServerTestEmailView(LoginRequiredMixin, FormView):
 
     def send_test_email(self, form):
         """Send the test email with inline images"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         email_to = form.cleaned_data["to_email"]
         company = self.request.active_company
         subject = f"Test mail from {company}"
@@ -240,6 +243,12 @@ class MailServerTestEmailView(LoginRequiredMixin, FormView):
             return None, email_backend
 
         try:
+            # Log email configuration for debugging
+            logger.info(f"Sending test email to {email_to}")
+            logger.info(f"SMTP Host: {email_backend.dynamic_host}, Port: {email_backend.dynamic_port}")
+            logger.info(f"Username: {email_backend.dynamic_username}")
+            logger.info(f"Use TLS: {email_backend.dynamic_use_tls}, Use SSL: {email_backend.dynamic_use_ssl}")
+            
             msg = EmailMultiAlternatives(
                 subject,
                 text_content,
@@ -248,10 +257,23 @@ class MailServerTestEmailView(LoginRequiredMixin, FormView):
                 connection=email_backend,
             )
             msg.attach_alternative(html_content, "text/html")
-            msg.send()
-            return True, None
+            
+            # Explicitly open connection and send
+            email_backend.open()
+            num_sent = msg.send()
+            
+            logger.info(f"Email send result: {num_sent} messages sent")
+            
+            # Check if email was actually sent
+            if num_sent and num_sent > 0:
+                return True, None
+            else:
+                return False, "Email was not sent. Please check your mail server configuration and logs."
 
         except Exception as e:
+            logger.error(f"Failed to send test email: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False, str(e)
 
     def parse_error_message(self, error_str):
