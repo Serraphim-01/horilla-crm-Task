@@ -32,6 +32,7 @@ class HorillaMailConfiguration(HorillaCoreModel):
     TYPE_CHOICES = [
         ("mail", _("Mail")),
         ("outlook", _("Outlook")),
+        ("mailjet", _("Mailjet")),
     ]
 
     MAIL_CHANNELS = [
@@ -125,6 +126,15 @@ class HorillaMailConfiguration(HorillaCoreModel):
     outlook_api_endpoint = models.URLField(
         verbose_name=_("Microsoft Graph API endpoint"), blank=True, null=True
     )
+    
+    # Mailjet specific fields
+    mailjet_api_key = models.CharField(
+        max_length=200, verbose_name=_("Mailjet API Key"), blank=True, null=True
+    )
+    mailjet_secret_key = EncryptedCharField(
+        max_length=512, verbose_name=_("Mailjet Secret Key"), blank=True, null=True
+    )
+    
     token = models.JSONField(default=dict, blank=True, null=True)
     oauth_state = models.CharField(
         editable=False, max_length=100, null=True, blank=True
@@ -138,6 +148,8 @@ class HorillaMailConfiguration(HorillaCoreModel):
 
     def custom_actions(self):
         """Return custom action buttons for the admin interface."""
+        if self.type == "mailjet":
+            return render_template(path="mailjet/mailjet_actions.html", context={"instance": self})
         return render_template(path="mail_actions.html", context={"instance": self})
 
     def clean(self):
@@ -162,6 +174,14 @@ class HorillaMailConfiguration(HorillaCoreModel):
         """
         if self.outlook_client_secret:
             return decrypt_password(self.outlook_client_secret)
+        return None
+
+    def get_decrypted_mailjet_secret_key(self):
+        """
+        Get decrypted Mailjet secret key.
+        """
+        if self.mailjet_secret_key:
+            return decrypt_password(self.mailjet_secret_key)
         return None
 
     def save(self, *args, **kwargs):

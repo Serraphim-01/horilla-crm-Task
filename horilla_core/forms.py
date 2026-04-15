@@ -789,16 +789,15 @@ class UserFormClass(HorillaMultiStepForm):
             return []
 
     def save(self, commit=True):
-        """Override save method to generate default password for new users."""
-        import uuid
+        """Override save method to set default password for new users."""
         from django.contrib.auth.hashers import make_password
         
         user = super().save(commit=False)
         
-        # Generate a default password for new users
+        # Set a static default password for new users
         if not user.pk and not user.password:
-            # Generate a secure random password
-            default_password = str(uuid.uuid4())[:12]
+            # Use a static default password
+            default_password = "Task@123"
             user.password = make_password(default_password)
             # Store the plain password temporarily for email sending
             user._plain_password = default_password
@@ -882,16 +881,15 @@ class UserFormSingle(HorillaModelForm):
             return []
 
     def save(self, commit=True):
-        """Override save method to generate default password for new users."""
-        import uuid
+        """Override save method to set default password for new users."""
         from django.contrib.auth.hashers import make_password
         
         user = super().save(commit=False)
         
-        # Generate a default password for new users
+        # Set a static default password for new users
         if not user.pk and not user.password:
-            # Generate a secure random password
-            default_password = str(uuid.uuid4())[:12]
+            # Use a static default password
+            default_password = "Task@123"
             user.password = make_password(default_password)
             # Store the plain password temporarily for email sending
             user._plain_password = default_password

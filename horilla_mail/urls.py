@@ -208,4 +208,40 @@ urlpatterns = [
         views.IncomingMailServerTypeSelectionView.as_view(),
         name="incoming_mail_server_type_selection",
     ),
+    # Mailjet mail server urls
+    path(
+        "mailjet-mail-server/",
+        views.MailjetMailServerView.as_view(),
+        name="mailjet_mail_server_view",
+    ),
+    path(
+        "mailjet-mail-server-navbar/",
+        views.MailjetMailServerNavbar.as_view(),
+        name="mailjet_mail_server_navbar_view",
+    ),
+    path(
+        "mailjet-mail-server-list/",
+        views.MailjetMailServerListView.as_view(),
+        name="mailjet_mail_server_list_view",
+    ),
+    path(
+        "mailjet-mail-server-form-view/",
+        views.MailjetMailServerFormView.as_view(),
+        name="mailjet_mail_server_form_view",
+    ),
+    path(
+        "mailjet-mail-server-update/<int:pk>/",
+        views.MailjetMailServerFormView.as_view(),
+        name="mailjet_mail_server_update_view",
+    ),
+    path(
+        "mailjet-mail-server-delete/<int:pk>/",
+        views.MailjetMailServerDeleteView.as_view(),
+        name="mailjet_mail_server_delete_view",
+    ),
+    path(
+        "mailjet-send-test-email/",
+        views.MailjetMailServerTestEmailView.as_view(),
+        name="mailjet_send_test_email_view",
+    ),
 ]

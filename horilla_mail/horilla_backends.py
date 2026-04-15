@@ -168,6 +168,8 @@ class HorillaDefaultMailBackend(EmailBackend):
 
         if self.configuration and self.configuration.type == "outlook":
             return self._send_outlook_messages(email_messages)
+        elif self.configuration and self.configuration.type == "mailjet":
+            return self._send_mailjet_messages(email_messages)
         
         # For SMTP, ensure connection is open and handle errors properly
         try:
@@ -428,6 +430,198 @@ class HorillaDefaultMailBackend(EmailBackend):
 
         except Exception as e:
             logger.error("Error sending email: %s", str(e))
+            if not self.fail_silently:
+                raise e
+            return False
+
+    def _send_mailjet_messages(self, email_messages):
+        """Send messages using Mailjet API"""
+        import requests
+        
+        if not self.configuration:
+            logger.error("No Mailjet configuration found")
+            return 0
+
+        api_key = self.configuration.mailjet_api_key
+        secret_key = self.configuration.get_decrypted_mailjet_secret_key()
+
+        if not api_key or not secret_key:
+            logger.error("Mailjet API credentials not configured")
+            return 0
+
+        sent_count = 0
+        for message in email_messages:
+            try:
+                if self._send_mailjet_message(message, api_key, secret_key):
+                    sent_count += 1
+            except Exception as e:
+                logger.error(f"Error sending Mailjet email: {str(e)}")
+                if not self.fail_silently:
+                    raise e
+
+        return sent_count
+
+    def _send_mailjet_message(self, message, api_key, secret_key):
+        """Send a single message using Mailjet API"""
+        import requests
+        
+        try:
+            # Mailjet API endpoint
+            url = "https://api.mailjet.com/v3.1/send"
+            
+            # Get display name and from email
+            request = getattr(_thread_local, "request", None)
+            display_name = self.configuration.display_name or ""
+            from_email = self.configuration.from_email
+            
+            # Check if dynamic display name is being used
+            if (
+                request
+                and request.user.is_authenticated
+                and self.configuration.use_dynamic_display_name
+            ):
+                display_name = sanitize_display_name(request.user.get_full_name())
+                from_email = request.user.email
+            
+            # Build the message payload
+            payload = {
+                "Messages": [
+                    {
+                        "From": {
+                            "Email": from_email,
+                            "Name": display_name
+                        },
+                        "To": [
+                            {
+                                "Email": email,
+                                "Name": email
+                            } for email in message.to
+                        ],
+                        "Subject": message.subject or "",
+                    }
+                ]
+            }
+            
+            # Add CC if present
+            if message.cc:
+                payload["Messages"][0]["Cc"] = [
+                    {
+                        "Email": email,
+                        "Name": email
+                    } for email in message.cc
+                ]
+            
+            # Add BCC if present
+            if message.bcc:
+                payload["Messages"][0]["Bcc"] = [
+                    {
+                        "Email": email,
+                        "Name": email
+                    } for email in message.bcc
+                ]
+            
+            # Add reply-to if present
+            if message.reply_to:
+                payload["Messages"][0]["ReplyTo"] = {
+                    "Email": message.reply_to[0],
+                    "Name": message.reply_to[0]
+                }
+            
+            # Handle body content
+            if isinstance(message, EmailMultiAlternatives):
+                # Check for HTML alternative
+                html_content = None
+                text_content = message.body or ""
+                
+                for alternative in getattr(message, "alternatives", []):
+                    if alternative[1] == "text/html":
+                        html_content = alternative[0]
+                        break
+                
+                if html_content:
+                    payload["Messages"][0]["HTMLPart"] = html_content
+                    payload["Messages"][0]["TextPart"] = text_content
+                else:
+                    payload["Messages"][0]["TextPart"] = text_content
+            else:
+                payload["Messages"][0]["TextPart"] = message.body or ""
+            
+            # Handle attachments
+            if hasattr(message, "attachments") and message.attachments:
+                import base64
+                attachments = []
+                
+                for attachment in message.attachments:
+                    try:
+                        if hasattr(attachment, "get_payload"):
+                            # MIME attachment
+                            content = attachment.get_payload()
+                            if attachment.get("Content-Transfer-Encoding") == "base64":
+                                if isinstance(content, bytes):
+                                    content = content.decode("ascii")
+                            else:
+                                if isinstance(content, str):
+                                    content = base64.b64encode(content.encode()).decode()
+                                else:
+                                    content = base64.b64encode(content).decode()
+                            
+                            attachment_data = {
+                                "ContentType": attachment.get_content_type() or "application/octet-stream",
+                                "Filename": attachment.get_filename() or "attachment",
+                                "Base64Content": content,
+                            }
+                            
+                            # Check if inline
+                            content_id = attachment.get("Content-ID", "")
+                            if content_id:
+                                attachment_data["ContentId"] = content_id.strip("<>")
+                            
+                            attachments.append(attachment_data)
+                        else:
+                            # Tuple attachment (filename, content, mimetype)
+                            filename, content, mimetype = attachment
+                            if isinstance(content, str):
+                                content = content.encode()
+                            
+                            attachments.append({
+                                "ContentType": mimetype,
+                                "Filename": filename,
+                                "Base64Content": base64.b64encode(content).decode(),
+                            })
+                    except Exception as e:
+                        logger.error(f"Error processing Mailjet attachment: {e}")
+                        continue
+                
+                if attachments:
+                    payload["Messages"][0]["Attachments"] = attachments
+            
+            # Log the request
+            logger.info(f"Sending email via Mailjet to: {message.to}")
+            logger.info(f"From: {from_email}, Subject: {message.subject}")
+            
+            # Make the API request
+            response = requests.post(
+                url,
+                json=payload,
+                auth=(api_key, secret_key),
+                timeout=30
+            )
+            
+            logger.info(f"Mailjet API Response Status: {response.status_code}")
+            logger.info(f"Mailjet API Response: {response.text}")
+            
+            if response.status_code == 200:
+                return True
+            else:
+                error_data = response.json()
+                error_message = error_data.get("Messages", [{}])[0].get(
+                    "Errors", [{}]
+                )[0].get("ErrorMessage", "Unknown error")
+                logger.error(f"Mailjet API Error: {error_message}")
+                raise Exception(f"Mailjet API Error: {error_message}")
+
+        except Exception as e:
+            logger.error("Error sending Mailjet email: %s", str(e))
             if not self.fail_silently:
                 raise e
             return False

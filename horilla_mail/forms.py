@@ -326,3 +326,72 @@ class OutlookMailConfigurationForm(HorillaModelForm):
         for field_name in outlook_required_fields:
             if field_name in self.fields:
                 self.fields[field_name].required = True
+
+
+class MailjetMailConfigurationForm(HorillaModelForm):
+    """
+    Form for configuring Mailjet mail integration.
+
+    This form allows users to configure Mailjet API credentials
+    for sending emails via Mailjet's API.
+    """
+
+    mailjet_secret_key = forms.CharField(
+        widget=PasswordInputWithEye(
+            attrs={"placeholder": _("e.g., a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6")}
+        ),
+        help_text=_(
+            "Enter your Mailjet Secret Key from your Mailjet account settings. "
+            "This key is used to authenticate your API requests securely."
+        ),
+        required=True,
+    )
+
+    class Meta:
+        """Meta class for MailjetMailConfigurationForm."""
+
+        model = HorillaMailConfiguration
+        fields = [
+            "from_email",
+            "display_name",
+            "mailjet_api_key",
+            "mailjet_secret_key",
+            "is_primary",
+            "company",
+            "type",
+            "mail_channel",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # For Mailjet, these fields are mandatory
+        mailjet_required_fields = [
+            "from_email",
+            "display_name",
+            "mailjet_api_key",
+            "mailjet_secret_key",
+        ]
+
+        # Set fields as required
+        for field_name in mailjet_required_fields:
+            if field_name in self.fields:
+                self.fields[field_name].required = True
+
+        # Set placeholder examples for Mailjet fields
+        if "mailjet_api_key" in self.fields:
+            self.fields["mailjet_api_key"].widget.attrs["placeholder"] = _(
+                "e.g., 9f8e7d6c5b4a3210fedcba9876543210"
+            )
+            self.fields["mailjet_api_key"].help_text = _(
+                "Enter your Mailjet API Key from your Mailjet account settings. "
+                "You can find this in your account's SMTP & API settings page."
+            )
+        if "from_email" in self.fields:
+            self.fields["from_email"].widget.attrs["placeholder"] = _(
+                "e.g., sender@yourdomain.com"
+            )
+        if "display_name" in self.fields:
+            self.fields["display_name"].widget.attrs["placeholder"] = _(
+                "e.g., Your Company Name"
+            )
