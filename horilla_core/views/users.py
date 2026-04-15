@@ -616,31 +616,31 @@ class UserDeleteView(LoginRequiredMixin, HorillaSingleDeleteView):
         """Get the response after deleting a user."""
         return HttpResponse("<script>htmx.trigger('#reloadButton','click');</script>")
     
-    def delete(self, request, *args, **kwargs):
-        """Handle user deletion with proper error handling and dependency cleanup."""
+    def post(self, request, *args, **kwargs):
+        """Handle POST request for user deletion with proper cleanup."""
         try:
             self.object = self.get_object()
             user = self.object
             
-            # Delete dependent records that have PROTECT constraint
-            # These are user preferences/settings that should be cleaned up
+            # Delete dependent records that might have PROTECT constraint
             from horilla_core.models import DetailFieldVisibility, TimelineSpanBy
             
             # Delete user's field visibility preferences
-            DetailFieldVisibility.objects.filter(user=user).delete()
+            DetailFieldVisibility.all_objects.filter(user=user).delete()
             
             # Delete user's timeline span settings
-            TimelineSpanBy.objects.filter(user=user).delete()
+            TimelineSpanBy.all_objects.filter(user=user).delete()
             
-            # Now proceed with normal deletion
-            return super().delete(request, *args, **kwargs)
+            # Now proceed with parent's post method which handles the actual deletion
+            return super().post(request, *args, **kwargs)
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f"Error deleting user: {str(e)}")
+            logger.error(f"Error deleting user: {str(e)}", exc_info=True)
+            from django.contrib import messages
             messages.error(
                 request, 
-                f"Error deleting user: {str(e)}. The user may have dependent records that need to be reassigned or deleted first."
+                f"Error deleting user: {str(e)}"
             )
             return HttpResponse(
                 "<script>$('#reloadButton').click();$('#reloadMessagesButton').click();closeDeleteModeModal();</script>"
