@@ -15,7 +15,7 @@ class HorillaMailServerFilter(HorillaFilterSet):
         model = HorillaMailConfiguration
         fields = "__all__"
         exclude = ["additional_info", "token"]
-        search_fields = ["host", "username"]
+        search_fields = ["host", "username", "from_email"]
 
 
 class HorillaMailTemplateFilter(HorillaFilterSet):

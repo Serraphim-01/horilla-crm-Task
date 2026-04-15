@@ -20,10 +20,10 @@ class MailSettings:
     items = [
         {
             "label": _("Outgoing Mail Server"),
-            "url": reverse_lazy("horilla_mail:mail_server_view"),
+            "url": reverse_lazy("horilla_mail:mailjet_mail_server_view"),
             "hx-target": "#settings-content",
             "hx-push-url": "true",
-            "hx-select": "#mail-server-view",
+            "hx-select": "#mailjet-server-view",
             "hx-select-oob": "#settings-sidebar",
             "perm": "horilla_mail.view_horillamailconfiguration",
         },
@@ -33,15 +33,6 @@ class MailSettings:
             "hx-target": "#settings-content",
             "hx-push-url": "true",
             "hx-select": "#mail-server-view",
-            "hx-select-oob": "#settings-sidebar",
-            "perm": "horilla_mail.view_horillamailconfiguration",
-        },
-        {
-            "label": _("Mailjet Mail Server"),
-            "url": reverse_lazy("horilla_mail:mailjet_mail_server_view"),
-            "hx-target": "#settings-content",
-            "hx-push-url": "true",
-            "hx-select": "#mailjet-server-view",
             "hx-select-oob": "#settings-sidebar",
             "perm": "horilla_mail.view_horillamailconfiguration",
         },

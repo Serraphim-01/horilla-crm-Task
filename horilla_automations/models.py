@@ -102,7 +102,7 @@ class HorillaAutomation(HorillaCoreModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        limit_choices_to={"mail_channel": "outgoing"},
+        limit_choices_to={"type": "mailjet", "mail_channel": "outgoing"},
         verbose_name=_("Outgoing Mail Server"),
         help_text=_(
             "Select the mail server to use for sending emails. If not selected, the primary mail server will be used."

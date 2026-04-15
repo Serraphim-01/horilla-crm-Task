@@ -75,6 +75,11 @@ def trigger_automations_on_save(sender, instance, created, **kwargs):
     # Skip if this is a HorillaContentType or other system models
     if sender in [HorillaContentType]:
         return
+    
+    # Skip automations for User model on creation - credentials email is sent directly in form_valid
+    from horilla.auth.models import User
+    if sender == User and created:
+        return
 
     try:
         # Check if there are any automations for this model

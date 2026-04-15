@@ -58,10 +58,10 @@ class MailjetMailServerView(LoginRequiredMixin, HorillaView):
 )
 class MailjetMailServerNavbar(LoginRequiredMixin, HorillaNavView):
     """
-    Navbar view for Mailjet mail server
+    Navbar view for Mailjet mail server (Outgoing Mail Server)
     """
 
-    nav_title = _("Mailjet Mail Configurations")
+    nav_title = _("Outgoing Mail Configurations")
     search_url = reverse_lazy("horilla_mail:mailjet_mail_server_list_view")
     main_url = reverse_lazy("horilla_mail:mailjet_mail_server_view")
     nav_width = False
@@ -92,7 +92,7 @@ class MailjetMailServerNavbar(LoginRequiredMixin, HorillaNavView):
 )
 class MailjetMailServerListView(LoginRequiredMixin, HorillaListView):
     """
-    List view of Mailjet mail server configurations
+    List view of outgoing mail server configurations (Mailjet)
     """
 
     model = HorillaMailConfiguration
@@ -108,11 +108,11 @@ class MailjetMailServerListView(LoginRequiredMixin, HorillaListView):
     list_column_visibility = False
     action_method = "custom_actions"
 
-    columns = ["from_email", "display_name", "type"]
+    columns = ["get_email_identifier", "type"]
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        return queryset.filter(type="mailjet")
+        return queryset.filter(type="mailjet", mail_channel="outgoing")
 
 
 @method_decorator(htmx_required, name="dispatch")
@@ -127,12 +127,12 @@ class MailjetMailServerListView(LoginRequiredMixin, HorillaListView):
 )
 class MailjetMailServerFormView(LoginRequiredMixin, HorillaSingleFormView):
     """
-    Create and update form view for Mailjet mail server
+    Create and update form view for Mailjet mail server (Outgoing Mail Server)
     """
 
     model = HorillaMailConfiguration
     form_class = MailjetMailConfigurationForm
-    form_title = "Mailjet Mail Server Configuration"
+    form_title = "Outgoing Mail Server Configuration"
     modal_height = False
     hidden_fields = ["company", "type", "mail_channel"]
     save_and_new = False

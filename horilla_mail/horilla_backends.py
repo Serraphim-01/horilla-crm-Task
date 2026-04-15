@@ -84,6 +84,22 @@ class HorillaDefaultMailBackend(EmailBackend):
                 ssl_certfile=ssl_certfile,
                 **kwargs,
             )
+        elif self.configuration and self.configuration.type == "mailjet":
+            # For Mailjet, don't initialize SMTP - we'll use the API instead
+            # Just call parent with minimal config
+            super().__init__(
+                host=None,
+                port=None,
+                username=None,
+                password=None,
+                use_tls=False,
+                fail_silently=fail_silently,
+                use_ssl=False,
+                timeout=None,
+                ssl_keyfile=ssl_keyfile,
+                ssl_certfile=ssl_certfile,
+                **kwargs,
+            )
         else:
             # For Outlook or fallback, still initialize with default values
             super().__init__(
@@ -127,14 +143,31 @@ class HorillaDefaultMailBackend(EmailBackend):
                 return None
 
         if not configuration and company:
+            # First try to get Mailjet configuration (the default outgoing mail server)
             configuration = HorillaMailConfiguration.objects.filter(
-                company=company
+                company=company,
+                type="mailjet",
+                mail_channel="outgoing"
             ).first()
+            
+            # Fall back to any company configuration
+            if not configuration:
+                configuration = HorillaMailConfiguration.objects.filter(
+                    company=company
+                ).first()
 
         if not configuration:
+            # Try to get Mailjet configuration first
             configuration = HorillaMailConfiguration.objects.filter(
-                is_primary=True
+                type="mailjet",
+                mail_channel="outgoing"
             ).first()
+            
+            # Fall back to primary configuration
+            if not configuration:
+                configuration = HorillaMailConfiguration.objects.filter(
+                    is_primary=True
+                ).first()
 
         if configuration:
             display_name = sanitize_display_name(configuration.display_name)

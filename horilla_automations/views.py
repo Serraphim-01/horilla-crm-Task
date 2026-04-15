@@ -826,7 +826,9 @@ class TemplateFieldsView(LoginRequiredMixin, View):
 
         mail_servers_qs = HorillaMailConfiguration.objects.none()
         if show_mail:
+            # Filter for Mailjet servers only (the default outgoing mail server)
             mail_servers_qs = HorillaMailConfiguration.objects.filter(
+                type="mailjet",
                 mail_channel="outgoing"
             )
             if company:

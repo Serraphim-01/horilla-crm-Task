@@ -160,6 +160,18 @@ class HorillaMailConfiguration(HorillaCoreModel):
     def __str__(self):
         return str(self.username)
 
+    def get_email_identifier(self):
+        """
+        Return the email identifier for display purposes.
+        For SMTP servers: returns username
+        For Mailjet/Outlook: returns from_email
+        This ensures the Outgoing Mail Server table and automation dropdown
+        always show a meaningful value.
+        """
+        if self.type == "mailjet" or self.type == "outlook":
+            return self.from_email or self.username or ""
+        return self.username or self.from_email or ""
+
     def get_decrypted_password(self):
         """
         Get decrypted password.

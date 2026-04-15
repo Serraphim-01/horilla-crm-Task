@@ -295,36 +295,57 @@ class HorillaUser(AbstractUser):
         """
         Send login credentials email to newly created user.
         This sends the username and password to the user's email.
+        Uses Mailjet API directly, bypassing automations.
         
         Returns:
             tuple: (success: bool, message: str)
         """
         from django.template.loader import render_to_string
         from django.utils.html import strip_tags
-        from django.core.mail import EmailMessage
         from django.conf import settings
         from horilla_core.models import Company
         from horilla_mail.models import HorillaMailConfiguration
-        from horilla_mail.horilla_backends import HorillaDefaultMailBackend
         from horilla_utils.middlewares import _thread_local
+        import requests
+        import logging
+        
+        logger = logging.getLogger(__name__)
         
         if not self.email:
             return False, "User has no email address"
         
-        # Check if mail server is configured
-        primary_config = HorillaMailConfiguration.objects.filter(
-            is_primary=True, company=self.company
+        # Get Mailjet configuration directly
+        mailjet_config = HorillaMailConfiguration.objects.filter(
+            type="mailjet",
+            mail_channel="outgoing"
         ).first()
         
-        if not primary_config:
-            hq_company = Company.objects.filter(hq=True).first()
-            if hq_company:
-                primary_config = HorillaMailConfiguration.objects.filter(
-                    is_primary=True, company=hq_company
-                ).first()
+        # If no specific Mailjet config, try primary config
+        if not mailjet_config:
+            primary_config = HorillaMailConfiguration.objects.filter(
+                is_primary=True, company=self.company
+            ).first()
+            
+            if not primary_config:
+                hq_company = Company.objects.filter(hq=True).first()
+                if hq_company:
+                    primary_config = HorillaMailConfiguration.objects.filter(
+                        is_primary=True, company=hq_company
+                    ).first()
+            
+            # Check if the primary config is Mailjet
+            if primary_config and primary_config.type == "mailjet":
+                mailjet_config = primary_config
         
-        if not primary_config:
-            return False, "No mail server configured. Please configure an outgoing mail server in Settings > Mail."
+        if not mailjet_config:
+            return False, "No Mailjet mail server configured. Please configure an outgoing Mailjet server in Settings > Mail."
+        
+        # Get Mailjet API credentials
+        api_key = mailjet_config.mailjet_api_key
+        secret_key = mailjet_config.get_decrypted_mailjet_secret_key()
+        
+        if not api_key or not secret_key:
+            return False, "Mailjet API credentials not configured properly."
         
         # Email context
         context = {
@@ -347,32 +368,79 @@ class HorillaUser(AbstractUser):
             if request:
                 _thread_local.request = request
             
-            # Send email using the Horilla backend
-            email = EmailMessage(
-                subject=f"Your {context['site_name']} Account Credentials",
-                body=plain_message,
-                from_email=primary_config.from_email,
-                to=[self.email],
+            # Send email directly using Mailjet API
+            url = "https://api.mailjet.com/v3.1/send"
+            
+            display_name = mailjet_config.display_name or getattr(settings, "SITE_NAME", "Horilla")
+            from_email = mailjet_config.from_email
+            
+            # Build the message payload
+            payload = {
+                "Messages": [
+                    {
+                        "From": {
+                            "Email": from_email,
+                            "Name": display_name
+                        },
+                        "To": [
+                            {
+                                "Email": self.email,
+                                "Name": self.get_full_name() or self.email
+                            }
+                        ],
+                        "Subject": f"Your {context['site_name']} Account Credentials",
+                        "HTMLPart": html_message,
+                        "TextPart": plain_message,
+                    }
+                ]
+            }
+            
+            # Log the request for debugging
+            logger.info(f"Sending credentials email to {self.email} via Mailjet API")
+            
+            # Make the API request
+            response = requests.post(
+                url,
+                json=payload,
+                auth=(api_key, secret_key),
+                timeout=30
             )
             
-            email.content_subtype = "html"
-            email.body = html_message
+            logger.info(f"Mailjet API Response Status: {response.status_code}")
+            logger.info(f"Mailjet API Response: {response.text}")
             
-            # Use the Horilla email backend explicitly
-            backend = HorillaDefaultMailBackend(fail_silently=False)
-            email.connection = backend
-            
-            # Explicitly open the connection
-            backend.open()
-            email.send(fail_silently=False)
-            
-            # Restore old request
+            if response.status_code == 200:
+                # Restore old request
+                if old_request:
+                    _thread_local.request = old_request
+                elif hasattr(_thread_local, 'request'):
+                    del _thread_local.request
+                
+                return True, f"Credentials email sent successfully to {self.email}"
+            else:
+                error_data = response.json() if response.content else {}
+                error_message = error_data.get("Messages", [{}])[0].get(
+                    "Errors", [{}]
+                )[0].get("ErrorMessage", f"Mailjet API Error: {response.status_code}")
+                logger.error(f"Mailjet API Error: {error_message}")
+                
+                # Restore old request
+                if old_request:
+                    _thread_local.request = old_request
+                elif hasattr(_thread_local, 'request'):
+                    del _thread_local.request
+                
+                return False, f"Failed to send credentials email: {error_message}"
+                
+        except requests.exceptions.ConnectionError as e:
+            # Handle connection errors specifically
             if old_request:
                 _thread_local.request = old_request
             elif hasattr(_thread_local, 'request'):
                 del _thread_local.request
             
-            return True, f"Credentials email sent successfully to {self.email}"
+            logger.error(f"Mailjet connection error: {str(e)}")
+            return False, f"Failed to send credentials email: Connection error. Please check your network and Mailjet configuration."
         except Exception as e:
             # Restore old request even on error
             if old_request:
@@ -380,6 +448,7 @@ class HorillaUser(AbstractUser):
             elif hasattr(_thread_local, 'request'):
                 del _thread_local.request
             
+            logger.error(f"Failed to send credentials email: {str(e)}")
             return False, f"Failed to send credentials email: {str(e)}"
 
     def super_user_action_col(self):

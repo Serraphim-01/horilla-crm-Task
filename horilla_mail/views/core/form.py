@@ -54,8 +54,12 @@ class HorillaMailFormView(LoginRequiredMixin, TemplateView):
     def get(self, request, *args, **kwargs):
         """Render mail form or config-required message; create draft when pk/cancel provided."""
         company = request.active_company
+        # Check for Mailjet servers (the default outgoing mail server)
         outgoing_mail_exists = HorillaMailConfiguration.objects.filter(
-            mail_channel="outgoing", company=company, is_active=True
+            type="mailjet",
+            mail_channel="outgoing",
+            company=company,
+            is_active=True
         ).exists()
 
         if not outgoing_mail_exists:
@@ -437,7 +441,9 @@ class HorillaMailFormView(LoginRequiredMixin, TemplateView):
         ).first()
         if not primary_mail_config:
             primary_mail_config = HorillaMailConfiguration.objects.first()
+        # Get all Mailjet configurations (the default outgoing mail server)
         all_mail_configs = HorillaMailConfiguration.objects.filter(
+            type="mailjet",
             mail_channel="outgoing"
         )
 

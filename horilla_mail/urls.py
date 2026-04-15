@@ -8,40 +8,34 @@ from horilla_mail import views
 app_name = "horilla_mail"
 
 urlpatterns = [
-    path("mail-server/", views.MailServerView.as_view(), name="mail_server_view"),
     path(
         "mail-server-navbar/",
-        views.MailServerNavbar.as_view(),
+        views.MailjetMailServerNavbar.as_view(),
         name="mail_server_navbar_view",
     ),
     path(
         "mail-server-list/",
-        views.MailServerListView.as_view(),
+        views.MailjetMailServerListView.as_view(),
         name="mail_server_list_view",
     ),
     path(
         "mail-server-form-view/",
-        views.OutgoingMailServerFormView.as_view(),
+        views.MailjetMailServerFormView.as_view(),
         name="mail_server_form_view",
     ),
     path(
-        "mail-server/select-type/",
-        views.MailServerTypeSelectionView.as_view(),
-        name="mail_server_type_selection",
-    ),
-    path(
         "mail-server-update/<int:pk>/",
-        views.OutgoingMailServerFormView.as_view(),
+        views.MailjetMailServerFormView.as_view(),
         name="mail_server_update_view",
     ),
     path(
         "mail-server-delete/<int:pk>/",
-        views.MailServerDeleteView.as_view(),
+        views.MailjetMailServerDeleteView.as_view(),
         name="mail_server_delete_view",
     ),
     path(
         "send-test-email/",
-        views.MailServerTestEmailView.as_view(),
+        views.MailjetMailServerTestEmailView.as_view(),
         name="send_test_email_view",
     ),
     path("send-mail/", views.HorillaMailFormView.as_view(), name="send_mail_view"),

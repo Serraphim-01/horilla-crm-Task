@@ -544,20 +544,28 @@ def send_automation_email(automation, instance, recipients, context, user):
         # Get mail server - use the one selected in automation, or fall back to default
         sender = automation.mail_server
 
-        # If no mail server selected in automation, use default logic
+        # If no mail server selected in automation, use default logic (Mailjet first)
         if not sender:
             if company:
+                # First try to get Mailjet configuration
                 sender = HorillaMailConfiguration.objects.filter(
-                    company=company, mail_channel="outgoing", is_primary=True
+                    company=company,
+                    type="mailjet",
+                    mail_channel="outgoing",
+                    is_primary=True
                 ).first()
                 if not sender:
                     sender = HorillaMailConfiguration.objects.filter(
-                        company=company, mail_channel="outgoing"
+                        company=company,
+                        type="mailjet",
+                        mail_channel="outgoing"
                     ).first()
             else:
-                # Fallback to primary mail server if no company
+                # Fallback to primary Mailjet mail server if no company
                 sender = HorillaMailConfiguration.objects.filter(
-                    mail_channel="outgoing", is_primary=True
+                    type="mailjet",
+                    mail_channel="outgoing",
+                    is_primary=True
                 ).first()
 
         mail = HorillaMail.objects.create(

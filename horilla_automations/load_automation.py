@@ -137,7 +137,11 @@ class LoadAutomationModalView(LoginRequiredMixin, TemplateView):
                     )
         context["automations"] = all_automations
         company = _get_company(self.request)
-        mail_servers = HorillaMailConfiguration.objects.filter(mail_channel="outgoing")
+        # Filter for Mailjet servers (the default outgoing mail server)
+        mail_servers = HorillaMailConfiguration.objects.filter(
+            type="mailjet",
+            mail_channel="outgoing"
+        )
         if company:
             mail_servers = mail_servers.filter(company=company)
         context["mail_servers"] = list(mail_servers)
@@ -168,6 +172,7 @@ class CreateSelectedAutomationsView(LoginRequiredMixin, View):
         try:
             mail_server = HorillaMailConfiguration.objects.get(
                 pk=mail_server_id,
+                type="mailjet",
                 mail_channel="outgoing",
             )
             if company and mail_server.company != company:

@@ -26,7 +26,7 @@
             required>
             <option value="">{% trans "Select mail server" %}</option>
             {% for server in mail_servers %}
-              <option value="{{ server.pk }}">{{ server }}</option>
+              <option value="{{ server.pk }}">{{ server.get_email_identifier }} ({{ server.get_type_display }})</option>
             {% endfor %}
           </select>
           {% if not mail_servers %}
