@@ -210,12 +210,12 @@ class HorillaSingleDeleteView(DeleteDependencyMixin, DeleteReassignMixin, Delete
                 context["related_verbose_name_plural"] = related_verbose_name_plural
                 context["hx_target"] = self.hx_target
                 return render(
-                    request, "partials/single_delete/delete_all_confirm.html", context
+                    request, "partials/Single_delete/delete_all_confirm.html", context
                 )
 
             if not request.GET.get("delete_mode"):
                 return render(
-                    request, "partials/single_delete/delete_mode_modal.html", context
+                    request, "partials/Single_delete/delete_mode_modal.html", context
                 )
             return render(
                 request,
@@ -289,7 +289,7 @@ class HorillaSingleDeleteView(DeleteDependencyMixin, DeleteReassignMixin, Delete
                     "check_dependencies": check_dependencies,
                 }
                 return render(
-                    request, "partials/single_delete/delete_mode_modal.html", context
+                    request, "partials/Single_delete/delete_mode_modal.html", context
                 )
 
             if check_dependencies == "false" and delete_mode:
@@ -339,9 +339,7 @@ class HorillaSingleDeleteView(DeleteDependencyMixin, DeleteReassignMixin, Delete
                     request.GET.get("view_id", f"delete_{record_id}"),
                 )
                 return render(
-                    request,
-                    "partials/single_delete/delete_dependency_modal.html",
-                    context,
+                    request, "partials/Single_delete/delete_dependency_modal.html", context
                 )
 
             if action == "bulk_reassign" and request.POST.get("new_target_id"):
@@ -700,9 +698,7 @@ class HorillaSingleDeleteView(DeleteDependencyMixin, DeleteReassignMixin, Delete
                     request.GET.get("view_id", f"delete_{record_id}"),
                 )
                 return render(
-                    request,
-                    "partials/single_delete/delete_dependency_modal.html",
-                    context,
+                    request, "partials/Single_delete/delete_dependency_modal.html", context
                 )
 
             messages.error(self.request, "Error in delete method")

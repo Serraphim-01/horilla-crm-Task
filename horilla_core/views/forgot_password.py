@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMessage, EmailMultiAlternatives
 from django.db.models import Q
 from django.template.loader import render_to_string
 from django.utils.encoding import force_bytes, force_str
@@ -79,7 +79,8 @@ class ForgotPasswordView(View):
             )
             plain_message = strip_tags(html_message)
 
-            email = EmailMessage(
+            # Use EmailMultiAlternatives to send both HTML and plain text versions
+            email = EmailMultiAlternatives(
                 subject="Password Reset Request - Horilla",
                 body=plain_message,
                 from_email=(
@@ -89,9 +90,9 @@ class ForgotPasswordView(View):
                 ),
                 to=[user.email],
             )
-
-            email.content_subtype = "html"
-            email.body = html_message
+            
+            # Attach HTML version
+            email.attach_alternative(html_message, "text/html")
 
             email.send(fail_silently=False)
             return render(request, self.success_template)
