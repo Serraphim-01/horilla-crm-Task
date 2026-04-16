@@ -412,3 +412,32 @@ ALLOWED_LANGUAGES = [
 AUDITLOG_LOGENTRY_MODEL = "auditlog.LogEntry"
 
 BRANDING_MODULE = None
+
+# -----------------------------------------------------------------------------
+# Microsoft SSO Configuration
+# -----------------------------------------------------------------------------
+# To enable Microsoft SSO, set these values in your .env file:
+# MICROSOFT_SSO_ENABLED=True
+# MICROSOFT_SSO_CLIENT_ID=your_client_id
+# MICROSOFT_SSO_CLIENT_SECRET=your_client_secret
+# MICROSOFT_SSO_TENANT_ID=your_tenant_id (or 'common' for multi-tenant)
+# MICROSOFT_SSO_AUTO_PROVISION=True (to auto-create users on first login)
+
+MICROSOFT_SSO_ENABLED = env.bool('MICROSOFT_SSO_ENABLED', default=False)
+MICROSOFT_SSO_CLIENT_ID = env('MICROSOFT_SSO_CLIENT_ID', default='')
+MICROSOFT_SSO_CLIENT_SECRET = env('MICROSOFT_SSO_CLIENT_SECRET', default='')
+MICROSOFT_SSO_TENANT_ID = env('MICROSOFT_SSO_TENANT_ID', default='common')
+MICROSOFT_SSO_AUTO_PROVISION = env.bool('MICROSOFT_SSO_AUTO_PROVISION', default=True)
+MICROSOFT_SSO_SCOPES = [
+    'User.Read',
+    'email',
+    'profile',
+    'openid',
+]
+
+# Add Microsoft SSO authentication backend
+if MICROSOFT_SSO_ENABLED:
+    AUTHENTICATION_BACKENDS = [
+        'django.contrib.auth.backends.ModelBackend',  # Default backend
+        'horilla_core.auth.microsoft_sso.MicrosoftSSOBackend',  # Microsoft SSO backend
+    ]

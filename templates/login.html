@@ -130,6 +130,31 @@
                 </button>
             </form>
 
+            {% if MICROSOFT_SSO_ENABLED %}
+            <!-- Microsoft SSO Button -->
+            <div class="mt-4">
+                <div class="relative flex items-center justify-center mb-4">
+                    <div class="border-t border-gray-300 flex-grow"></div>
+                    <span class="px-3 text-sm text-gray-500">{% trans "or" %}</span>
+                    <div class="border-t border-gray-300 flex-grow"></div>
+                </div>
+                <a href="{% url 'horilla_core:microsoft_sso_login' %}{% if next %}?next={{ next }}{% endif %}"
+                    class="p-3 w-full flex gap-3 justify-center rounded-md text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition duration-300 cursor-pointer">
+                    <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                    </svg>
+                    {% if MICROSOFT_SSO_BUTTON_TEXT %}
+                        {{ MICROSOFT_SSO_BUTTON_TEXT }}
+                    {% else %}
+                        {% trans "Sign in with Microsoft" %}
+                    {% endif %}
+                </a>
+            </div>
+            {% endif %}
+
             {% if initialize_database %}
                 <div class="grid grid-cols-2 gap-2 mt-5">
                     <button

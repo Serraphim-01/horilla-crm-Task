@@ -14,6 +14,22 @@ urlpatterns = [
     path("", views.HomePageView.as_view(), name="home_view"),
     path("login/", views.LoginUserView.as_view(), name="login"),
     path("logout/", views.LogoutView.as_view(), name="logout"),
+    # Microsoft SSO URLs
+    path(
+        "microsoft-sso/login/",
+        views.MicrosoftSSOLoginView.as_view(),
+        name="microsoft_sso_login",
+    ),
+    path(
+        "microsoft-sso/callback/",
+        views.MicrosoftSSOCallbackView.as_view(),
+        name="microsoft_sso_callback",
+    ),
+    path(
+        "settings/microsoft-sso/",
+        views.MicrosoftSSOSettingsView.as_view(),
+        name="microsoft_sso_settings",
+    ),
     path("active-tab/", views.SaveActiveTabView.as_view(), name="active_tab"),
     path("favicon.ico", views.FaviconRedirectView.as_view()),
     path("settings-view/", views.SettingView.as_view(), name="settings_view"),

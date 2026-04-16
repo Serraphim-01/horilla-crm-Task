@@ -186,6 +186,16 @@ class LoginUserView(View):
             "initialize_database": initialize_database,
             "show_forgot_password": show_forgot_password,
         }
+        
+        # Check if Microsoft SSO is enabled from database
+        try:
+            from horilla_core.models import MicrosoftSSOSettings
+            sso_settings = MicrosoftSSOSettings.load()
+            context["MICROSOFT_SSO_ENABLED"] = sso_settings.is_enabled
+            if sso_settings.button_text:
+                context["MICROSOFT_SSO_BUTTON_TEXT"] = sso_settings.button_text
+        except Exception:
+            context["MICROSOFT_SSO_ENABLED"] = False
 
         _responses = pre_login_render_signal.send(
             sender=self.__class__, request=request, context=context
@@ -215,6 +225,13 @@ class LoginUserView(View):
                     company=Company.objects.filter(hq=True).first()
                 ).exists() if Company.objects.filter(hq=True).first() else False,
             }
+            # Check Microsoft SSO status
+            try:
+                from horilla_core.models import MicrosoftSSOSettings
+                sso_settings = MicrosoftSSOSettings.load()
+                context["MICROSOFT_SSO_ENABLED"] = sso_settings.is_enabled
+            except Exception:
+                context["MICROSOFT_SSO_ENABLED"] = False
             return render(request, "login.html", context=context)
 
         if not user.is_active:
@@ -230,6 +247,13 @@ class LoginUserView(View):
                     company=Company.objects.filter(hq=True).first()
                 ).exists() if Company.objects.filter(hq=True).first() else False,
             }
+            # Check Microsoft SSO status
+            try:
+                from horilla_core.models import MicrosoftSSOSettings
+                sso_settings = MicrosoftSSOSettings.load()
+                context["MICROSOFT_SSO_ENABLED"] = sso_settings.is_enabled
+            except Exception:
+                context["MICROSOFT_SSO_ENABLED"] = False
             return render(request, "login.html", context=context)
 
         login(request, user)

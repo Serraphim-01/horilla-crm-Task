@@ -35,11 +35,144 @@ from .models import (
     Department,
     FiscalYear,
     Holiday,
+    MicrosoftSSOSettings,
     MultipleCurrency,
     Role,
 )
 
 logger = logging.getLogger(__name__)
+
+
+class MicrosoftSSOSettingsForm(forms.ModelForm):
+    """
+    Form for Microsoft SSO settings configuration.
+    """
+
+    class Meta:
+        """Meta options."""
+
+        model = MicrosoftSSOSettings
+        fields = [
+            'is_enabled',
+            'client_id',
+            'client_secret',
+            'tenant_id',
+            'auto_provision',
+            'allowed_domains',
+            'scopes',
+            'button_text',
+        ]
+        widgets = {
+            'is_enabled': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+            }),
+            'client_id': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter Azure AD Application (Client) ID',
+            }),
+            'client_secret': forms.PasswordInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter Client Secret (will be encrypted)',
+                'autocomplete': 'new-password',
+            }),
+            'tenant_id': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter Tenant ID or "common" for multi-tenant',
+            }),
+            'auto_provision': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+            }),
+            'allowed_domains': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'example.com,partner.org (leave empty to allow all)',
+            }),
+            'scopes': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'User.Read,email,profile,openid',
+            }),
+            'button_text': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Sign in with Microsoft',
+            }),
+        }
+        labels = {
+            'is_enabled': _('Enable Microsoft SSO'),
+            'client_id': _('Client ID'),
+            'client_secret': _('Client Secret'),
+            'tenant_id': _('Tenant ID'),
+            'auto_provision': _('Auto-provision Users'),
+            'allowed_domains': _('Allowed Email Domains'),
+            'scopes': _('OAuth Scopes'),
+            'button_text': _('Button Text'),
+        }
+        help_texts = {
+            'client_secret': _(
+                'This will be encrypted before storing in the database. '
+                'Leave blank to keep existing secret.'
+            ),
+            'tenant_id': _(
+                'Use your Azure AD Directory (Tenant) ID for single-tenant apps, '
+                'or "common" for multi-tenant apps.'
+            ),
+            'auto_provision': _(
+                'When enabled, new users will be automatically created on first login.'
+            ),
+            'allowed_domains': _(
+                'Comma-separated list of email domains allowed to login. '
+                'Leave empty to allow all domains.'
+            ),
+            'scopes': _(
+                'Comma-separated list of Microsoft Graph API permissions.'
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the form."""
+        super().__init__(*args, **kwargs)
+        
+        # If editing existing instance, don't show the encrypted secret
+        if self.instance and self.instance.pk:
+            self.fields['client_secret'].required = False
+            self.fields['client_secret'].widget.attrs.update({
+                'placeholder': 'Leave blank to keep existing secret',
+            })
+
+    def clean_client_secret(self):
+        """
+        Handle client secret validation.
+        Don't overwrite if left blank.
+        """
+        client_secret = self.cleaned_data.get('client_secret', '')
+        
+        # If blank and we have an existing instance, keep the old value
+        if not client_secret and self.instance and self.instance.pk:
+            return self.instance.client_secret
+        
+        return client_secret
+
+    def clean_scopes(self):
+        """Validate and normalize scopes."""
+        scopes = self.cleaned_data.get('scopes', '')
+        
+        if not scopes:
+            return 'User.Read,email,profile,openid'
+        
+        # Normalize: remove spaces, ensure proper format
+        scope_list = [s.strip() for s in scopes.split(',') if s.strip()]
+        return ','.join(scope_list)
+
+    def clean_allowed_domains(self):
+        """Validate and normalize allowed domains."""
+        domains = self.cleaned_data.get('allowed_domains', '')
+        
+        if not domains:
+            return ''
+        
+        # Normalize: lowercase, remove spaces
+        domain_list = [d.strip().lower() for d in domains.split(',') if d.strip()]
+        return ','.join(domain_list)
 
 
 class FiscalYearForm(HorillaModelForm):

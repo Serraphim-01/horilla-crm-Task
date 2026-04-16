@@ -16,6 +16,15 @@ from horilla_core.views.core import (
     protected_media
 )
 
+from horilla_core.views.microsoft_sso import (
+    MicrosoftSSOLoginView,
+    MicrosoftSSOCallbackView,
+)
+
+from horilla_core.views.microsoft_sso_settings import (
+    MicrosoftSSOSettingsView,
+)
+
 from horilla_core.views.branches import (
     BranchesView,
     BranchNavbar,
@@ -260,6 +269,11 @@ __all__ = [
     "CompanyDetailsTab",
     "GetCountrySubdivisionsView",
     "FaviconRedirectView",
+    # microsoft_sso.py
+    "MicrosoftSSOLoginView",
+    "MicrosoftSSOCallbackView",
+    # microsoft_sso_settings.py
+    "MicrosoftSSOSettingsView",
     # branches.py
     "BranchesView",
     "BranchNavbar",

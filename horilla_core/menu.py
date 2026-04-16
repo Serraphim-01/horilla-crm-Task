@@ -138,6 +138,16 @@ class GeneralSettings:
             "hx-select-oob": "#settings-sidebar",
             "order": 3,
         },
+        {
+            "label": _("Microsoft SSO"),
+            "url": reverse_lazy("horilla_core:microsoft_sso_settings"),
+            "hx-target": "#settings-content",
+            "hx-push-url": "true",
+            "hx-select": "#microsoft-sso-settings-view",
+            "hx-select-oob": "#settings-sidebar",
+            "perm": "horilla_core.can_manage_microsoft_sso",
+            "order": 4,
+        },
     ]
 
 

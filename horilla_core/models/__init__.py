@@ -70,6 +70,7 @@ from horilla_core.models.visibility import (
     ListColumnVisibility,
     DetailFieldVisibility,
 )
+from horilla_core.models.microsoft_sso_settings import MicrosoftSSOSettings
 
 __all__ = [
     "Company",
@@ -113,4 +114,5 @@ __all__ = [
     "FieldPermission",
     "ListColumnVisibility",
     "DetailFieldVisibility",
+    "MicrosoftSSOSettings",
 ]
