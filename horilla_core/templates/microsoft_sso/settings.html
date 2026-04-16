@@ -5,13 +5,8 @@
 <div id="microsoft-sso-settings-view">
     {% include "messages.html" %}
     
-    <div class="flex justify-between items-center mb-4">
-        <div>
-            <h3 class="text-lg font-semibold">{% trans "Microsoft SSO Configuration" %}</h3>
-            <p class="text-sm text-gray-500 mt-1">
-                {% trans "Configure Single Sign-On with Microsoft Azure AD / Entra ID" %}
-            </p>
-        </div>
+    <div class="flex justify-between items-center mb-6">
+        <h3 class="text-lg font-semibold">{% trans "Microsoft SSO Configuration" %}</h3>
         <div class="flex items-center gap-2">
             <span class="text-sm text-gray-600">{% trans "Status:" %}</span>
             {% if settings_obj.is_enabled %}
@@ -37,9 +32,6 @@
                         <label for="{{ form.is_enabled.id_for_label }}" class="text-sm font-semibold text-gray-800">
                             {{ form.is_enabled.label }}
                         </label>
-                        <p class="text-xs text-gray-500 mt-1">
-                            {{ form.is_enabled.help_text }}
-                        </p>
                     </div>
                     <div>
                         <label class="relative inline-flex items-center cursor-pointer">
@@ -52,23 +44,52 @@
                 </div>
             </div>
 
+            <!-- Redirect URI Generator -->
+            <div class="mb-6 pb-6 border-b border-gray-200">
+                <h4 class="text-sm font-semibold text-gray-800 mb-4">{% trans "Redirect URI Configuration" %}</h4>
+                
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <label class="block text-xs text-gray-700 mb-2 font-medium">{% trans "Project URL" %}</label>
+                    <div class="flex gap-2">
+                        <select id="protocol-select" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:border-primary-600 focus-visible:outline-0">
+                            <option value="http" {% if request.scheme == 'http' %}selected{% endif %}>http://</option>
+                            <option value="https" {% if request.scheme == 'https' %}selected{% endif %}>https://</option>
+                        </select>
+                        <input type="text" id="project-url-input" value="{{ request.get_host }}" 
+                               class="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:border-primary-600 focus-visible:outline-0"
+                               placeholder="example.com or localhost:8000">
+                    </div>
+                </div>
+
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <label class="block text-xs text-gray-700 mb-2 font-medium">{% trans "Redirect URI for Azure App Registration" %}</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="redirect-uri-output" readonly
+                               class="flex-1 border border-green-300 bg-white rounded-md px-3 py-2 text-sm font-mono"
+                               value="{{ request.scheme }}://{{ request.get_host }}/microsoft-sso/callback/">
+                        <button type="button" onclick="copyRedirectUri()" 
+                                class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition duration-300 text-sm flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                            </svg>
+                            {% trans "Copy" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Azure AD Configuration -->
-            <div class="mb-6">
-                <h4 class="text-sm font-semibold text-gray-800 mb-4">{% trans "Azure AD Configuration" %}</h4>
+            <div class="mb-6 pb-6 border-b border-gray-200">
+                <h4 class="text-sm font-semibold text-gray-800 mb-4">{% trans "Azure AD Credentials" %}</h4>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Client ID -->
                     <div class="col-span-1">
                         <label for="{{ form.client_id.id_for_label }}" class="block text-xs text-gray-600 mb-1 font-medium">
                             {{ form.client_id.label }}
-                            {% if form.client_id.field.required %}
-                                <span class="text-red-500">*</span>
-                            {% endif %}
+                            <span class="text-red-500">*</span>
                         </label>
                         {{ form.client_id }}
-                        {% if form.client_id.help_text %}
-                            <p class="text-xs text-gray-500 mt-1">{{ form.client_id.help_text }}</p>
-                        {% endif %}
                         {% if form.client_id.errors %}
                             <div class="bg-red-50 text-red-500 px-3 py-2 rounded text-xs mt-1">
                                 {% for error in form.client_id.errors %}
@@ -100,14 +121,9 @@
                     <div class="col-span-1">
                         <label for="{{ form.tenant_id.id_for_label }}" class="block text-xs text-gray-600 mb-1 font-medium">
                             {{ form.tenant_id.label }}
-                            {% if form.tenant_id.field.required %}
-                                <span class="text-red-500">*</span>
-                            {% endif %}
+                            <span class="text-red-500">*</span>
                         </label>
                         {{ form.tenant_id }}
-                        {% if form.tenant_id.help_text %}
-                            <p class="text-xs text-gray-500 mt-1">{{ form.tenant_id.help_text }}</p>
-                        {% endif %}
                         {% if form.tenant_id.errors %}
                             <div class="bg-red-50 text-red-500 px-3 py-2 rounded text-xs mt-1">
                                 {% for error in form.tenant_id.errors %}
@@ -131,9 +147,6 @@
                                 <label for="{{ form.auto_provision.id_for_label }}" class="text-sm font-medium text-gray-800">
                                     {{ form.auto_provision.label }}
                                 </label>
-                                <p class="text-xs text-gray-500 mt-1">
-                                    {{ form.auto_provision.help_text }}
-                                </p>
                             </div>
                             <div>
                                 {{ form.auto_provision }}
@@ -142,14 +155,11 @@
                     </div>
 
                     <!-- Allowed Domains -->
-                    <div class="col-span-1 md:col-span-2">
+                    <div class="col-span-1">
                         <label for="{{ form.allowed_domains.id_for_label }}" class="block text-xs text-gray-600 mb-1 font-medium">
                             {{ form.allowed_domains.label }}
                         </label>
                         {{ form.allowed_domains }}
-                        {% if form.allowed_domains.help_text %}
-                            <p class="text-xs text-gray-500 mt-1">{{ form.allowed_domains.help_text }}</p>
-                        {% endif %}
                         {% if form.allowed_domains.errors %}
                             <div class="bg-red-50 text-red-500 px-3 py-2 rounded text-xs mt-1">
                                 {% for error in form.allowed_domains.errors %}
@@ -167,14 +177,11 @@
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- OAuth Scopes -->
-                    <div class="col-span-1 md:col-span-2">
+                    <div class="col-span-1">
                         <label for="{{ form.scopes.id_for_label }}" class="block text-xs text-gray-600 mb-1 font-medium">
                             {{ form.scopes.label }}
                         </label>
                         {{ form.scopes }}
-                        {% if form.scopes.help_text %}
-                            <p class="text-xs text-gray-500 mt-1">{{ form.scopes.help_text }}</p>
-                        {% endif %}
                         {% if form.scopes.errors %}
                             <div class="bg-red-50 text-red-500 px-3 py-2 rounded text-xs mt-1">
                                 {% for error in form.scopes.errors %}
@@ -190,9 +197,6 @@
                             {{ form.button_text.label }}
                         </label>
                         {{ form.button_text }}
-                        {% if form.button_text.help_text %}
-                            <p class="text-xs text-gray-500 mt-1">{{ form.button_text.help_text }}</p>
-                        {% endif %}
                         {% if form.button_text.errors %}
                             <div class="bg-red-50 text-red-500 px-3 py-2 rounded text-xs mt-1">
                                 {% for error in form.button_text.errors %}
@@ -219,35 +223,6 @@
                 </button>
             </div>
         </form>
-    </div>
-
-    <!-- Setup Guide -->
-    <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-5">
-        <h4 class="text-sm font-semibold text-blue-800 mb-3 flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            {% trans "Quick Setup Guide" %}
-        </h4>
-        <div class="text-xs text-blue-700 space-y-2">
-            <p class="font-medium">{% trans "To configure Microsoft SSO:" %}</p>
-            <ol class="list-decimal list-inside space-y-1 ml-2">
-                <li>{% trans "Go to Azure Portal → Azure Active Directory → App registrations" %}</li>
-                <li>{% trans "Create a new registration or use an existing one" %}</li>
-                <li>{% trans "Set redirect URI to:" %} <code class="bg-blue-100 px-2 py-0.5 rounded">{{ request.scheme }}://{{ request.get_host }}/microsoft-sso/callback/</code></li>
-                <li>{% trans "Copy the Application (Client) ID and Directory (Tenant) ID" %}</li>
-                <li>{% trans "Create a client secret under Certificates & secrets" %}</li>
-                <li>{% trans "Add API permissions: User.Read, email, profile, openid" %}</li>
-                <li>{% trans "Enter the values above and click Save Settings" %}</li>
-            </ol>
-            <p class="mt-3">
-                <a href="https://docs.microsoft.com/en-us/azure/active-directory/develop/quickstart-register-app" 
-                   target="_blank" 
-                   class="underline hover:text-blue-900">
-                    {% trans "View full Microsoft documentation →" %}
-                </a>
-            </p>
-        </div>
     </div>
 </div>
 
@@ -291,6 +266,45 @@
     #id_is_enabled:checked + span::after {
         transform: translateX(20px);
     }
+
+    #id_auto_provision {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    
+    #id_auto_provision + span::before {
+        content: '';
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+        background-color: #d1d5db;
+        border-radius: 12px;
+        position: relative;
+        transition: background-color 0.2s;
+    }
+    
+    #id_auto_provision + span::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 20px;
+        height: 20px;
+        background-color: white;
+        border-radius: 50%;
+        transition: transform 0.2s;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    
+    #id_auto_provision:checked + span::before {
+        background-color: #2563eb;
+    }
+    
+    #id_auto_provision:checked + span::after {
+        transform: translateX(20px);
+    }
 </style>
 
 <script>
@@ -299,5 +313,45 @@
         const statusText = document.getElementById('sso-status-text');
         statusText.textContent = this.checked ? 'Enabled' : 'Disabled';
     });
+
+    // Auto-generate redirect URI when project URL changes
+    function updateRedirectUri() {
+        const protocol = document.getElementById('protocol-select').value;
+        const projectUrl = document.getElementById('project-url-input').value.trim();
+        const redirectUri = `${protocol}://${projectUrl}/microsoft-sso/callback/`;
+        document.getElementById('redirect-uri-output').value = redirectUri;
+    }
+
+    document.getElementById('protocol-select').addEventListener('change', updateRedirectUri);
+    document.getElementById('project-url-input').addEventListener('input', updateRedirectUri);
+
+    // Copy redirect URI to clipboard
+    function copyRedirectUri() {
+        const redirectUriInput = document.getElementById('redirect-uri-output');
+        redirectUriInput.select();
+        redirectUriInput.setSelectionRange(0, 99999); // For mobile devices
+        
+        navigator.clipboard.writeText(redirectUriInput.value).then(() => {
+            // Show success feedback
+            const copyBtn = event.target.closest('button');
+            const originalHTML = copyBtn.innerHTML;
+            copyBtn.innerHTML = `
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Copied!
+            `;
+            copyBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+            copyBtn.classList.add('bg-blue-600');
+            
+            setTimeout(() => {
+                copyBtn.innerHTML = originalHTML;
+                copyBtn.classList.remove('bg-blue-600');
+                copyBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+            }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+        });
+    }
 </script>
 {% endblock %}
