@@ -308,6 +308,17 @@
 </style>
 
 <script>
+    // Load saved protocol from localStorage or default to current request scheme
+    (function() {
+        const protocolSelect = document.getElementById('protocol-select');
+        const savedProtocol = localStorage.getItem('microsoft_sso_protocol');
+        if (savedProtocol) {
+            protocolSelect.value = savedProtocol;
+        }
+        // If no saved value, use current request scheme
+        updateRedirectUri();
+    })();
+
     // Update status text when toggle changes
     document.getElementById('id_is_enabled').addEventListener('change', function() {
         const statusText = document.getElementById('sso-status-text');
@@ -322,7 +333,12 @@
         document.getElementById('redirect-uri-output').value = redirectUri;
     }
 
-    document.getElementById('protocol-select').addEventListener('change', updateRedirectUri);
+    document.getElementById('protocol-select').addEventListener('change', function() {
+        updateRedirectUri();
+        // Save protocol selection to localStorage
+        localStorage.setItem('microsoft_sso_protocol', this.value);
+    });
+    
     document.getElementById('project-url-input').addEventListener('input', updateRedirectUri);
 
     // Copy redirect URI to clipboard

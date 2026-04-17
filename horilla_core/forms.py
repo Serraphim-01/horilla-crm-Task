@@ -91,6 +91,8 @@ class MicrosoftSSOSettingsForm(forms.ModelForm):
                 'class': 'form-control',
                 'rows': 3,
                 'placeholder': 'User.Read,email,profile,openid',
+                'readonly': 'readonly',
+                'style': 'background-color: #f3f4f6; cursor: not-allowed;',
             }),
             'button_text': forms.TextInput(attrs={
                 'class': 'form-control',
