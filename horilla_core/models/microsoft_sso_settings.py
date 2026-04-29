@@ -101,6 +101,17 @@ class MicrosoftSSOSettings(HorillaCoreModel):
         blank=True,
         null=True,
     )
+    
+    # Protocol preference for redirect URI
+    redirect_protocol = models.CharField(
+        max_length=5,
+        verbose_name=_("Redirect URI Protocol"),
+        help_text=_("Protocol to use for redirect URI (http or https)"),
+        default="http",
+        choices=[("http", "HTTP"), ("https", "HTTPS")],
+        blank=True,
+        null=True,
+    )
 
     class Meta:
         """Meta options for MicrosoftSSOSettings."""
@@ -214,6 +225,9 @@ class MicrosoftSSOSettings(HorillaCoreModel):
             Redirect URI string
         """
         if request:
-            return request.build_absolute_uri('/microsoft-sso/callback/')
+            # Use the saved protocol preference
+            protocol = self.redirect_protocol or 'http'
+            host = request.get_host()
+            return f"{protocol}://{host}/microsoft-sso/callback/"
         # Fallback - will be overridden in views
         return '/microsoft-sso/callback/'

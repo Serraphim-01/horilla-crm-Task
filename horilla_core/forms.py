@@ -61,6 +61,7 @@ class MicrosoftSSOSettingsForm(forms.ModelForm):
             'allowed_domains',
             'scopes',
             'button_text',
+            'redirect_protocol',
         ]
         widgets = {
             'is_enabled': forms.CheckboxInput(attrs={
@@ -98,6 +99,9 @@ class MicrosoftSSOSettingsForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'Sign in with Microsoft',
             }),
+            'redirect_protocol': forms.Select(attrs={
+                'class': 'form-control',
+            }),
         }
         labels = {
             'is_enabled': _('Enable Microsoft SSO'),
@@ -108,6 +112,7 @@ class MicrosoftSSOSettingsForm(forms.ModelForm):
             'allowed_domains': _('Allowed Email Domains'),
             'scopes': _('OAuth Scopes'),
             'button_text': _('Button Text'),
+            'redirect_protocol': _('Redirect URI Protocol'),
         }
         help_texts = {
             'client_secret': _(

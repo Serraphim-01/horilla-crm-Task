@@ -94,9 +94,7 @@ class MicrosoftSSOLoginView(View):
             # Create the authorization flow
             auth_url = msal_app.get_authorization_request_url(
                 scopes=sso_settings.get_scopes_list(),
-                redirect_uri=request.build_absolute_uri(
-                    reverse('horilla_core:microsoft_sso_callback')
-                ),
+                redirect_uri=sso_settings.get_redirect_uri(request),
                 state=state,
                 nonce=nonce,
                 prompt='select_account',  # Allow user to select account
@@ -159,9 +157,7 @@ class MicrosoftSSOCallbackView(View):
             token_response = msal_app.acquire_token_by_authorization_code(
                 code=code,
                 scopes=sso_settings.get_scopes_list(),
-                redirect_uri=request.build_absolute_uri(
-                    reverse('horilla_core:microsoft_sso_callback')
-                ),
+                redirect_uri=sso_settings.get_redirect_uri(request),
             )
             
             # Check for errors in token response
