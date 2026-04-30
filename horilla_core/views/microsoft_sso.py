@@ -221,11 +221,14 @@ class MicrosoftSSOCallbackView(View):
             logger.info(f"Microsoft SSO: User {user.email} logged in successfully")
             logger.info(f"Microsoft SSO: User is authenticated: {request.user.is_authenticated}")
             logger.info(f"Microsoft SSO: Session key: {request.session.session_key}")
-            logger.info(f"Microsoft SSO: Redirecting to: {request.session.get('microsoft_sso_next', '/')}")
+            logger.info(f"Microsoft SSO: User ID: {user.id}")
+            logger.info(f"Microsoft SSO: User company: {getattr(user, 'company', None)}")
             
-            # Redirect to the next URL from session or home page
-            next_url = request.session.pop('microsoft_sso_next', '/')
-            return redirect(next_url)
+            # Redirect to dashboard using reverse URL
+            from django.urls import reverse
+            dashboard_url = reverse('horilla_dashboard:home_view') + '?section=home'
+            logger.info(f"Microsoft SSO: Redirecting to {dashboard_url}")
+            return redirect(dashboard_url)
             
         except Exception as e:
             logger.error(f"Error in Microsoft SSO callback: {str(e)}", exc_info=True)
