@@ -85,9 +85,9 @@ class MicrosoftSSOSettings(HorillaCoreModel):
         verbose_name=_("OAuth Scopes"),
         help_text=_(
             "Comma-separated list of Microsoft Graph API scopes. "
-            "Default: User.Read,email,profile,openid"
+            "Default: User.Read,email (openid and profile are added automatically by MSAL)"
         ),
-        default="User.Read,email,profile,openid",
+        default="User.Read,email",
         blank=True,
         null=True,
     )
@@ -177,11 +177,20 @@ class MicrosoftSSOSettings(HorillaCoreModel):
         Get scopes as a list.
         
         Returns:
-            List of scope strings
+            List of scope strings (excluding reserved scopes that MSAL adds automatically)
         """
+        # Reserved scopes that MSAL adds automatically
+        reserved_scopes = {'openid', 'profile', 'offline_access'}
+        
         if self.scopes:
-            return [scope.strip() for scope in self.scopes.split(',') if scope.strip()]
-        return ['User.Read', 'email', 'profile', 'openid']
+            # Filter out reserved scopes
+            return [
+                scope.strip() 
+                for scope in self.scopes.split(',') 
+                if scope.strip() and scope.strip().lower() not in reserved_scopes
+            ]
+        # Default scopes (excluding reserved ones)
+        return ['User.Read', 'email']
 
     def get_allowed_domains_list(self):
         """

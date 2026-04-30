@@ -91,7 +91,7 @@ class MicrosoftSSOSettingsForm(forms.ModelForm):
             'scopes': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 3,
-                'placeholder': 'User.Read,email,profile,openid',
+                'placeholder': 'User.Read,email (openid and profile are added automatically)',
                 'readonly': 'readonly',
                 'style': 'background-color: #f3f4f6; cursor: not-allowed;',
             }),
