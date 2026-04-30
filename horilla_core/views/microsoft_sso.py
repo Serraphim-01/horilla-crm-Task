@@ -83,6 +83,10 @@ class MicrosoftSSOLoginView(View):
                 messages.error(request, "Microsoft SSO is not configured or enabled.")
                 return redirect('horilla_core:login')
             
+            # Store the 'next' URL in session for after authentication
+            next_url = request.GET.get('next', '/')
+            request.session['microsoft_sso_next'] = next_url
+            
             # Generate a unique state for CSRF protection
             state = str(uuid.uuid4())
             request.session['microsoft_sso_state'] = state
@@ -184,11 +188,14 @@ class MicrosoftSSOCallbackView(View):
             )
             
             if user is None:
+                logger.error("Microsoft SSO authentication returned None - user could not be created or found")
                 messages.error(
                     request, 
-                    "Authentication failed. Your Microsoft account may not be authorized."
+                    "Authentication failed. Your Microsoft account may not be authorized or auto-provisioning is disabled."
                 )
                 return redirect('horilla_core:login')
+            
+            logger.info(f"Microsoft SSO: Successfully authenticated user {user.email}")
             
             # Check if user's email domain is allowed
             if not sso_settings.is_domain_allowed(user.email):
@@ -204,8 +211,8 @@ class MicrosoftSSOCallbackView(View):
             login(request, user, backend='horilla_core.auth.microsoft_sso.MicrosoftSSOBackend')
             messages.success(request, "Successfully logged in with Microsoft!")
             
-            # Redirect to the next URL or home page
-            next_url = request.GET.get('next', '/')
+            # Redirect to the next URL from session or home page
+            next_url = request.session.pop('microsoft_sso_next', '/')
             return redirect(next_url)
             
         except Exception as e:

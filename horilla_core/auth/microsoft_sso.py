@@ -115,12 +115,15 @@ class MicrosoftSSOBackend(BaseBackend):
             return user
 
         except User.DoesNotExist:
-            # Check if auto-provisioning is enabled
-            if not getattr(settings, 'MICROSOFT_SSO_AUTO_PROVISION', True):
+            # Check if auto-provisioning is enabled (from database settings)
+            from horilla_core.models import MicrosoftSSOSettings
+            sso_settings = MicrosoftSSOSettings.load()
+            
+            if not sso_settings.auto_provision:
                 logger.warning(f"User not found and auto-provisioning disabled: {email}")
                 return None
 
-            # Create new user
+            # Create new user with minimal required fields
             username = email.split('@')[0]
             
             # Ensure username is unique
@@ -130,20 +133,26 @@ class MicrosoftSSOBackend(BaseBackend):
                 username = f"{base_username}{counter}"
                 counter += 1
 
-            user = User.objects.create(
-                username=username,
-                email=email,
-                first_name=first_name,
-                last_name=last_name,
-                is_active=True,
-            )
+            try:
+                user = User.objects.create(
+                    username=username,
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name,
+                    is_active=True,
+                    # Set default country to avoid validation error
+                    country='US',  # Default to United States
+                )
 
-            # Set unusable password since user will login via SSO
-            user.set_unusable_password()
-            user.save()
+                # Set unusable password since user will login via SSO
+                user.set_unusable_password()
+                user.save()
 
-            logger.info(f"New user created via Microsoft SSO: {email}")
-            return user
+                logger.info(f"New user created via Microsoft SSO: {email}")
+                return user
+            except Exception as e:
+                logger.error(f"Failed to create user via Microsoft SSO: {str(e)}", exc_info=True)
+                return None
 
     def get_user(self, user_id):
         """
