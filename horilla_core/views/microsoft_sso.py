@@ -130,6 +130,10 @@ class MicrosoftSSOCallbackView(View):
             Redirect response to home page or login page
         """
         try:
+            logger.info("Microsoft SSO: Callback received")
+            logger.info(f"Microsoft SSO: Request GET params: {list(request.GET.keys())}")
+            logger.info(f"Microsoft SSO: Session exists: {bool(request.session.session_key)}")
+            
             # Get the authorization code from the callback
             code = request.GET.get('code')
             state = request.GET.get('state')
@@ -143,6 +147,9 @@ class MicrosoftSSOCallbackView(View):
             
             # Validate state for CSRF protection
             session_state = request.session.get('microsoft_sso_state')
+            logger.info(f"Microsoft SSO: State from URL: {state}")
+            logger.info(f"Microsoft SSO: State from session: {session_state}")
+            
             if state != session_state:
                 logger.warning("Microsoft SSO state mismatch - possible CSRF attack")
                 messages.error(request, "Authentication failed. Please try again.")
@@ -210,6 +217,11 @@ class MicrosoftSSOCallbackView(View):
             # Log the user in
             login(request, user, backend='horilla_core.auth.microsoft_sso.MicrosoftSSOBackend')
             messages.success(request, "Successfully logged in with Microsoft!")
+            
+            logger.info(f"Microsoft SSO: User {user.email} logged in successfully")
+            logger.info(f"Microsoft SSO: User is authenticated: {request.user.is_authenticated}")
+            logger.info(f"Microsoft SSO: Session key: {request.session.session_key}")
+            logger.info(f"Microsoft SSO: Redirecting to: {request.session.get('microsoft_sso_next', '/')}")
             
             # Redirect to the next URL from session or home page
             next_url = request.session.pop('microsoft_sso_next', '/')
