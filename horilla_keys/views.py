@@ -8,7 +8,9 @@ from functools import cached_property
 
 # Third-party imports (Django)
 from django.contrib import messages
+from django.contrib.auth import login
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.shortcuts import redirect
 from django.views import View
 
 from horilla.http import HttpResponse, JsonResponse
@@ -199,3 +201,11 @@ class ShortKeyDataView(LoginRequiredMixin, View):
         ]
 
         return JsonResponse({"shortcuts": shortcuts})
+
+
+def microsoft_callback(request):
+    user = get_or_create_user_from_microsoft()
+
+    login(request, user)  # 🔥 THIS IS REQUIRED
+
+    return redirect("dashboard")
