@@ -224,6 +224,18 @@ class MicrosoftSSOCallbackView(View):
             logger.info(f"Microsoft SSO: User ID: {user.id}")
             logger.info(f"Microsoft SSO: User company: {getattr(user, 'company', None)}")
             
+            # Set active company in session
+            if user.company:
+                request.session['active_company_id'] = user.company.id
+                logger.info(f"Microsoft SSO: Set active_company_id to {user.company.id}")
+            else:
+                # If no company is assigned, try to get HQ company
+                from horilla_core.models import Company
+                hq_company = Company.objects.filter(hq=True).first()
+                if hq_company:
+                    request.session['active_company_id'] = hq_company.id
+                    logger.info(f"Microsoft SSO: Set active_company_id to HQ company {hq_company.id}")
+            
             # Redirect to dashboard using reverse URL
             from django.urls import reverse
             dashboard_url = reverse('horilla_dashboard:home_view') + '?section=home'

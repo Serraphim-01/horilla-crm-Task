@@ -116,7 +116,7 @@ class MicrosoftSSOBackend(BaseBackend):
 
         except User.DoesNotExist:
             # Check if auto-provisioning is enabled (from database settings)
-            from horilla_core.models import MicrosoftSSOSettings
+            from horilla_core.models import MicrosoftSSOSettings, Company
             sso_settings = MicrosoftSSOSettings.load()
             
             if not sso_settings.auto_provision:
@@ -134,12 +134,16 @@ class MicrosoftSSOBackend(BaseBackend):
                 counter += 1
 
             try:
+                # Get the HQ company to assign to the user
+                company = Company.objects.filter(hq=True).first()
+                
                 user = User.objects.create(
                     username=username,
                     email=email,
                     first_name=first_name,
                     last_name=last_name,
                     is_active=True,
+                    company=company,  # Assign to HQ company
                     # Set default country to avoid validation error
                     country='US',  # Default to United States
                 )
@@ -148,7 +152,7 @@ class MicrosoftSSOBackend(BaseBackend):
                 user.set_unusable_password()
                 user.save()
 
-                logger.info(f"New user created via Microsoft SSO: {email}")
+                logger.info(f"New user created via Microsoft SSO: {email} (company: {company})")
                 return user
             except Exception as e:
                 logger.error(f"Failed to create user via Microsoft SSO: {str(e)}", exc_info=True)
