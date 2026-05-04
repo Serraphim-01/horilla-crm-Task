@@ -16,6 +16,8 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.views import View
 
+from horilla.http.url_safety import safe_url
+
 logger = logging.getLogger(__name__)
 
 
@@ -236,8 +238,13 @@ class MicrosoftSSOCallbackView(View):
                     request.session['active_company_id'] = hq_company.id
                     logger.info(f"Microsoft SSO: Set active_company_id to HQ company {hq_company.id}")
             
-            # Redirect to dashboard using reverse URL
-            from django.urls import reverse
+            # Decide where to redirect after login
+            next_url = request.session.pop('microsoft_sso_next', None)
+            if next_url:
+                next_url = safe_url(request, next_url, '/')
+                logger.info(f"Microsoft SSO: Redirecting to saved next URL: {next_url}")
+                return redirect(next_url)
+
             dashboard_url = reverse('horilla_dashboard:home_view') + '?section=home'
             logger.info(f"Microsoft SSO: Redirecting to {dashboard_url}")
             return redirect(dashboard_url)

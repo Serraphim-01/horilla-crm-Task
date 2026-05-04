@@ -104,7 +104,17 @@ class MicrosoftSSOBackend(BaseBackend):
                 user.first_name = first_name
             if not user.last_name and last_name:
                 user.last_name = last_name
-                
+
+            # Assign a company if the existing user has none
+            if not user.company:
+                from horilla_core.models import Company
+                company = Company.objects.filter(hq=True).first() or Company.objects.first()
+                if company:
+                    user.company = company
+                    logger.info(
+                        f"Assigned company {company} to existing Microsoft SSO user {email}"
+                    )
+
             # Ensure user is active
             if not user.is_active:
                 logger.warning(f"Inactive user attempted Microsoft SSO login: {email}")
@@ -134,28 +144,37 @@ class MicrosoftSSOBackend(BaseBackend):
                 counter += 1
 
             try:
-                # Get the HQ company to assign to the user
-                company = Company.objects.filter(hq=True).first()
-                
+                # Prefer HQ company, otherwise allocate the first available company
+                company = Company.objects.filter(hq=True).first() or Company.objects.first()
+                if not company:
+                    logger.warning(
+                        "No company available to assign to new Microsoft SSO user."
+                    )
+
                 user = User.objects.create(
                     username=username,
                     email=email,
                     first_name=first_name,
                     last_name=last_name,
                     is_active=True,
-                    company=company,  # Assign to HQ company
+                    company=company,
                     # Set default country to avoid validation error
-                    country='US',  # Default to United States
+                    country='US',
                 )
 
                 # Set unusable password since user will login via SSO
                 user.set_unusable_password()
                 user.save()
 
-                logger.info(f"New user created via Microsoft SSO: {email} (company: {company})")
+                logger.info(
+                    f"New user created via Microsoft SSO: {email} (company: {company})"
+                )
                 return user
             except Exception as e:
-                logger.error(f"Failed to create user via Microsoft SSO: {str(e)}", exc_info=True)
+                logger.error(
+                    f"Failed to create user via Microsoft SSO: {str(e)}",
+                    exc_info=True,
+                )
                 return None
 
     def get_user(self, user_id):
