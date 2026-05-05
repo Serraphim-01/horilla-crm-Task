@@ -258,7 +258,11 @@ class LoginUserView(View):
 
         login(request, user)
         messages.success(request, _("Login successful."))
-        next_url = safe_url(request, next_url)
+        # If the next URL is the root or the login page, redirect to the default
+        # dashboard instead of looping back to the login page.
+        next_url = safe_url(request, next_url, '/')
+        if next_url in ('/', '/login/'):
+            next_url = settings.DEFAULT_HOME_REDIRECT
         return redirect(next_url)
 
 

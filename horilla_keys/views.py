@@ -206,6 +206,8 @@ class ShortKeyDataView(LoginRequiredMixin, View):
 def microsoft_callback(request):
     user = get_or_create_user_from_microsoft()
 
-    login(request, user)  # 🔥 THIS IS REQUIRED
+    user.backend = 'django.contrib.auth.backends.ModelBackend'  
+    login(request, user)
 
     return redirect("dashboard")
+    
