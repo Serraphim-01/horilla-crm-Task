@@ -203,15 +203,22 @@ class MicrosoftSSOCallbackView(View):
             try:
                 user = User.objects.get(email=email)
             except User.DoesNotExist:
-                # Create new user
-                user = User.objects.create_user(
-                    username=email,
-                    email=email,
-                    is_active=True,
-                    is_staff=False,
-                )
-                user.set_unusable_password()
-                user.save()
+            # Create new user
+            user = User.objects.create_user(
+                username=email,
+                email=email,
+                is_active=True,
+                is_staff=False,
+            )
+            # Assign country Nigeria if available
+            try:
+                from horilla_core.models import Country
+                nigeria = Country.objects.get(code__iexact='NG')
+                user.country = nigeria
+            except Exception:
+                pass
+            user.set_unusable_password()
+            user.save()
             
             if user is None:
                 logger.error("Microsoft SSO authentication returned None - user could not be created or found")
