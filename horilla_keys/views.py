@@ -209,5 +209,6 @@ def microsoft_callback(request):
     user.backend = 'django.contrib.auth.backends.ModelBackend'  
     login(request, user)
 
-    return redirect("dashboard")
-    
+    return redirect("/dashboard/?section=home")
+
+print("After login:", request.user.is_authenticated)
