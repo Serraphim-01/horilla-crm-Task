@@ -190,14 +190,28 @@ class MicrosoftSSOCallbackView(View):
                 messages.error(request, "Microsoft login failed. Please try again.")
                 return redirect('horilla_core:login')
             
-            # Authenticate the user using our custom backend
-            from horilla_core.auth.microsoft_sso import MicrosoftSSOBackend
+            # Authenticate or create the user using the default ModelBackend
+            from django.contrib.auth import get_user_model
+            from django.contrib.auth.backends import ModelBackend
             
-            backend = MicrosoftSSOBackend()
-            user = backend.authenticate(
-                request=request, 
-                token_response=token_response
-            )
+            User = get_user_model()
+            email = token_response.get("id_token_claims", {}).get("email")
+            if not email:
+                messages.error(request, "Microsoft login failed: email not provided.")
+                return redirect('horilla_core:login')
+            # Try to get existing user
+            try:
+                user = User.objects.get(email=email)
+            except User.DoesNotExist:
+                # Create new user
+                user = User.objects.create_user(
+                    username=email,
+                    email=email,
+                    is_active=True,
+                    is_staff=False,
+                )
+                user.set_unusable_password()
+                user.save()
             
             if user is None:
                 logger.error("Microsoft SSO authentication returned None - user could not be created or found")
@@ -219,8 +233,9 @@ class MicrosoftSSOCallbackView(View):
                 user.delete()  # Remove auto-created user if domain not allowed
                 return redirect('horilla_core:login')
             
-            # Log the user in
-            login(request, user, backend='horilla_core.auth.microsoft_sso.MicrosoftSSOBackend')
+            # Log the user in using the default ModelBackend
+            backend = ModelBackend()
+            login(request, user, backend=backend)
             messages.success(request, "Successfully logged in with Microsoft!")
             
             logger.info(f"Microsoft SSO: User {user.email} logged in successfully")

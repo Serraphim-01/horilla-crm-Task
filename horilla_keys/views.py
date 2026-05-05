@@ -210,5 +210,7 @@ def microsoft_callback(request):
     login(request, user)
 
     return redirect("/dashboard/?section=home")
-
+    
 print("After login:", request.user.is_authenticated)
+
+
