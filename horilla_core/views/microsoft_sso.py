@@ -234,8 +234,8 @@ class MicrosoftSSOCallbackView(View):
                 return redirect('horilla_core:login')
             
             # Log the user in using the default ModelBackend
-            backend = ModelBackend()
-            login(request, user, backend=backend)
+            # Use the dotted path string for the backend
+            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
             messages.success(request, "Successfully logged in with Microsoft!")
             
             logger.info(f"Microsoft SSO: User {user.email} logged in successfully")
