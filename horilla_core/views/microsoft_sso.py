@@ -87,6 +87,9 @@ class MicrosoftSSOLoginView(View):
             
             # Store the 'next' URL in session for after authentication
             next_url = request.GET.get('next', '/')
+            # If the next URL is the root or login page, default to dashboard
+            if next_url in ('/', '/login/'):
+                next_url = settings.DEFAULT_HOME_REDIRECT
             request.session['microsoft_sso_next'] = next_url
             
             # Generate a unique state for CSRF protection
