@@ -1,9 +1,9 @@
-"""Branding configuration constants for Horilla CRM."""
+"""Branding configuration constants for Task CRM."""
 
 # First-party / Horilla imports
 from horilla.utils.translation import gettext_lazy as _
 
-TITLE = "Horilla CRM"
-LOGIN_WELCOME_LINE = "Welcome to Horilla CRM"
-SIGNUP_TAG_LINE = "Please sign up to access Horilla CRM"
-PAGE_HEADER = "Horilla CRM"
+TITLE = "Task CRM"
+LOGIN_WELCOME_LINE = "Welcome to Task CRM"
+SIGNUP_TAG_LINE = "Please sign up to access Task CRM"
+PAGE_HEADER = "Task CRM"

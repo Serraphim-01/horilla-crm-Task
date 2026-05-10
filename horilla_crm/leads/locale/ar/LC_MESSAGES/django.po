@@ -29,13 +29,13 @@ msgid "CRM module for managing leads, contacts, and opportunities."
 msgstr "وحدة إدارة علاقات العملاء لإدارة العملاء المحتملين وجهات الاتصال والفرص."
 
 msgid "Horilla CRM"
-msgstr "هوريلا لإدارة علاقات العملاء"
+msgstr "Task لإدارة علاقات العملاء"
 
 msgid "Welcome to Horilla CRM"
-msgstr "مرحبًا بك في هوريلا لإدارة علاقات العملاء"
+msgstr "مرحبًا بك في Task لإدارة علاقات العملاء"
 
 msgid "Please sign up to access Horilla CRM"
-msgstr "يرجى التسجيل للوصول إلى هوريلا لإدارة علاقات العملاء"
+msgstr "يرجى التسجيل للوصول إلى Task لإدارة علاقات العملاء"
 
 msgid "Is Final Stage"
 msgstr "هل هي المرحلة النهائية"

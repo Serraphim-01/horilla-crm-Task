@@ -28,13 +28,13 @@ msgid "CRM module for managing leads, contacts, and opportunities."
 msgstr "CRM-Modul zur Verwaltung von Interessenten, Kontakten und Chancen."
 
 msgid "Horilla CRM"
-msgstr "Horilla CRM"
+msgstr "Task CRM"
 
 msgid "Welcome to Horilla CRM"
-msgstr "Willkommen bei Horilla CRM"
+msgstr "Willkommen bei Task CRM"
 
 msgid "Please sign up to access Horilla CRM"
-msgstr "Bitte registrieren Sie sich, um auf Horilla CRM zuzugreifen"
+msgstr "Bitte registrieren Sie sich, um auf Task CRM zuzugreifen"
 
 msgid "Is Final Stage"
 msgstr "Ist Endphase"
