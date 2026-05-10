@@ -3,10 +3,10 @@
     "model": "horilla_core.company",
     "pk": 1,
     "fields": {
-      "name": "Horilla",
-      "email": "horilla@gmail.com",
-      "website": "http://demo.horilla.com/",
-      "icon": "horilla_core/company/icon/horilla-logo-ec60473b-cffe6865-7d1946ee.png",
+      "name": "Task",
+      "email": "task@gmail.com",
+      "website": "http://demo.task.com/",
+      "icon": "horilla_core/company/icon/task-logo-ec60473b-cffe6865-7d1946ee.png",
       "contact_number": "9876543210",
       "fax": "F555",
       "annual_revenue": "123456.00",
@@ -32,7 +32,7 @@
     "model": "horilla_core.company",
     "pk": 3,
     "fields": {
-      "name": "Horilla Inc",
+      "name": "Task Inc",
       "email": "jessicabarnes@hall-braun.com",
       "website": "https://www.edwards-lopez.net/",
       "icon": "",

@@ -1,4 +1,4 @@
-"""Branding configuration utilities for Horilla."""
+"""Branding configuration utilities for Task."""
 
 from importlib import import_module
 
@@ -6,13 +6,13 @@ from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
 DEFAULTS = {
-    "TITLE": _("Horilla"),
-    "LOGIN_WELCOME_LINE": _("Welcome to Horilla"),
+    "TITLE": _("Task"),
+    "LOGIN_WELCOME_LINE": _("Welcome to Task"),
     "LOGIN_TAG_LINE": _("Please sign in to access your dashboard"),
-    "SIGNUP_TAG_LINE": _("Please sign up to access Horilla"),
+    "SIGNUP_TAG_LINE": _("Please sign up to access Task"),
     "LOGO_PATH": "assets/img/logo.svg",
     "FAVICON_PATH": "favicon.ico",
-    "PAGE_HEADER": _("Horilla"),
+    "PAGE_HEADER": _("Task"),
 }
 
 
