@@ -10,7 +10,7 @@ DEFAULTS = {
     "LOGIN_WELCOME_LINE": _("Welcome to Task"),
     "LOGIN_TAG_LINE": _("Please sign in to access your dashboard"),
     "SIGNUP_TAG_LINE": _("Please sign up to access Task"),
-    "LOGO_PATH": "assets/img/logo.svg",
+    "LOGO_PATH": "assets/img/task-logo.png",
     "FAVICON_PATH": "favicon.ico",
     "PAGE_HEADER": _("Task"),
 }
