@@ -6,6 +6,7 @@ from django.core.validators import RegexValidator
 
 # Create your horilla_theme models here.
 # Third-party imports (Django)
+from django.conf import settings
 from django.db import transaction
 
 # First party imports (Horilla)
@@ -237,3 +238,40 @@ class CompanyTheme(HorillaCoreModel):
         return HorillaColorTheme.objects.filter(
             name="Coral Red Theme (Default)"
         ).first()
+
+
+class UserTheme(models.Model):
+    """Model to store theme preference per user."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="theme_preference",
+        verbose_name=_("User"),
+    )
+    theme = models.ForeignKey(
+        HorillaColorTheme,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="user_themes",
+        verbose_name=_("Theme"),
+    )
+
+    class Meta:
+        verbose_name = _("User Theme")
+        verbose_name_plural = _("User Themes")
+
+    def __str__(self):
+        return f"{self.user} - {self.theme}"
+
+    @classmethod
+    def get_theme_for_user(cls, user):
+        """Get the preferred theme for a specific user."""
+        if not user or not user.is_authenticated:
+            return HorillaColorTheme.get_default_theme()
+
+        user_theme = cls.objects.select_related("theme").filter(user=user).first()
+        if user_theme and user_theme.theme:
+            return user_theme.theme
+
+        return HorillaColorTheme.get_default_theme()

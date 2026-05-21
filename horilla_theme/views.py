@@ -18,7 +18,7 @@ from horilla.http import HttpResponse
 from horilla.utils.translation import gettext_lazy as _
 
 # First-party / Horilla apps
-from horilla_theme.models import CompanyTheme, HorillaColorTheme
+from horilla_theme.models import HorillaColorTheme, UserTheme
 
 
 # @method_decorator(
@@ -34,29 +34,17 @@ class ThemeView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        active_company = getattr(self.request, "active_company", None)
         context["themes"] = HorillaColorTheme.objects.all()
         context["active_theme"] = self._get_active_theme()
-        context["active_company"] = active_company
 
-        # Get current company's theme
-        current_company_theme = None
-        if active_company:
-            current_company_theme = CompanyTheme.objects.filter(
-                company=active_company
-            ).first()
-        context["current_company_theme"] = current_company_theme
-
-        # Get the global default theme (for login page) - this is what all companies should see
-        default_theme = HorillaColorTheme.get_default_theme()
-        context["default_theme"] = default_theme
+        # Get the global default theme (for login page)
+        context["default_theme"] = HorillaColorTheme.get_default_theme()
 
         return context
 
     def _get_active_theme(self):
-        """Get the active theme for the current company"""
-        active_company = getattr(self.request, "active_company", None)
-        return CompanyTheme.get_theme_for_company(active_company)
+        """Get the active theme for the current user."""
+        return UserTheme.get_theme_for_user(self.request.user)
 
 
 # @method_decorator(
@@ -78,13 +66,9 @@ class ChangeThemeView(LoginRequiredMixin, View):
         if not theme_id:
             return self._error_response(request, _("Theme ID is required"), 400)
 
-        active_company = getattr(request, "active_company", None)
-        if not active_company:
-            return self._error_response(request, _("No active company found"), 400)
-
         try:
             theme = HorillaColorTheme.objects.get(pk=theme_id)
-            self._update_company_theme(active_company, theme, is_default)
+            self._update_user_theme(request.user, theme, is_default)
 
             if is_default:
                 messages.success(
@@ -106,11 +90,11 @@ class ChangeThemeView(LoginRequiredMixin, View):
                 500,
             )
 
-    def _update_company_theme(self, company, theme, is_default=False):
-        """Update or create the company theme."""
+    def _update_user_theme(self, user, theme, is_default=False):
+        """Update or create the user's theme preference."""
         with transaction.atomic():
-            _company_theme, _created = CompanyTheme.objects.update_or_create(
-                company=company, defaults={"theme": theme}
+            UserTheme.objects.update_or_create(
+                user=user, defaults={"theme": theme}
             )
 
             # If setting as default, set it on the theme itself
@@ -121,23 +105,10 @@ class ChangeThemeView(LoginRequiredMixin, View):
     def _render_themes(self, request, active_theme=None, status=200):
         """Render the theme cards HTML."""
         if active_theme is None:
-            active_company = getattr(request, "active_company", None)
-            if active_company:
-                active_theme = CompanyTheme.get_theme_for_company(active_company)
-            else:
-                active_theme = CompanyTheme.get_default_theme()
+            active_theme = UserTheme.get_theme_for_user(request.user)
 
         themes = HorillaColorTheme.objects.all()
-        active_company = getattr(request, "active_company", None)
 
-        # Get current company theme to check if it's default
-        current_company_theme = None
-        if active_company:
-            current_company_theme = CompanyTheme.objects.filter(
-                company=active_company
-            ).first()
-
-        # Get the global default theme (for login page) - this is what all companies should see
         default_theme = HorillaColorTheme.get_default_theme()
 
         html = render_to_string(
@@ -145,7 +116,6 @@ class ChangeThemeView(LoginRequiredMixin, View):
             {
                 "themes": themes,
                 "active_theme": active_theme,
-                "current_company_theme": current_company_theme,
                 "default_theme": default_theme,
                 "request": request,
             },
@@ -174,26 +144,15 @@ class SetDefaultThemeView(LoginRequiredMixin, View):
         if not theme_id:
             return self._error_response(request, _("Theme ID is required"), 400)
 
-        active_company = getattr(request, "active_company", None)
-        if not active_company:
-            return self._error_response(request, _("No active company found"), 400)
-
         try:
             theme = HorillaColorTheme.objects.get(pk=theme_id)
 
-            # Check if this theme is already set as global default
-            is_currently_default = theme.is_default
+            # Save this selection as the current user's preferred theme
+            from horilla_theme.models import UserTheme
 
-            if is_currently_default:
-                # Unset as default (toggle off)
-                theme.is_default = False
-                theme.save()
-                messages.success(request, _("Theme removed as default for login page"))
-            else:
-                # Set as default - this will automatically reset any existing default
-                theme.is_default = True
-                theme.save()  # The save() method will handle unsetting other defaults
-                messages.success(request, _("Theme set as default for login page"))
+            UserTheme.objects.update_or_create(user=request.user, defaults={"theme": theme})
+
+            messages.success(request, _("Theme set successfully for your account"))
 
             return self._render_themes(request)
 
@@ -207,21 +166,9 @@ class SetDefaultThemeView(LoginRequiredMixin, View):
 
     def _render_themes(self, request, status=200):
         """Render the theme cards HTML."""
-        active_company = getattr(request, "active_company", None)
-        active_theme = None
-        current_company_theme = None
-
-        if active_company:
-            active_theme = CompanyTheme.get_theme_for_company(active_company)
-            current_company_theme = CompanyTheme.objects.filter(
-                company=active_company
-            ).first()
-        else:
-            active_theme = CompanyTheme.get_default_theme()
+        active_theme = UserTheme.get_theme_for_user(request.user)
 
         themes = HorillaColorTheme.objects.all()
-
-        # Get the global default theme (for login page) - this is what all companies should see
         default_theme = HorillaColorTheme.get_default_theme()
 
         html = render_to_string(
@@ -229,7 +176,6 @@ class SetDefaultThemeView(LoginRequiredMixin, View):
             {
                 "themes": themes,
                 "active_theme": active_theme,
-                "current_company_theme": current_company_theme,
                 "default_theme": default_theme,
                 "request": request,
             },

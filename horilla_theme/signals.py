@@ -58,52 +58,50 @@ def get_theme_data_for_logout(sender, request, **kwargs):
     The data_dict will be JSON stringified and stored.
     """
     if request.user.is_authenticated:
-        active_company = getattr(request, "active_company", None)
-        if active_company:
-            from horilla_theme.models import CompanyTheme
+        from horilla_theme.models import UserTheme
 
-            company_theme = (
-                CompanyTheme.objects.filter(company=active_company)
-                .select_related("theme")
-                .first()
-            )
+        user_theme = (
+            UserTheme.objects.select_related("theme")
+            .filter(user=request.user)
+            .first()
+        )
 
-            if company_theme and company_theme.theme:
-                theme = company_theme.theme
-                theme_data_dict = {
-                    "id": theme.id,
-                    "primary_50": theme.primary_50,
-                    "primary_100": theme.primary_100,
-                    "primary_200": theme.primary_200,
-                    "primary_300": theme.primary_300,
-                    "primary_400": theme.primary_400,
-                    "primary_500": theme.primary_500,
-                    "primary_600": theme.primary_600,
-                    "primary_700": theme.primary_700,
-                    "primary_800": theme.primary_800,
-                    "primary_900": theme.primary_900,
-                    "dark_50": theme.dark_50,
-                    "dark_100": theme.dark_100,
-                    "dark_200": theme.dark_200,
-                    "dark_300": theme.dark_300,
-                    "dark_400": theme.dark_400,
-                    "dark_500": theme.dark_500,
-                    "dark_600": theme.dark_600,
-                    "secondary_50": theme.secondary_50,
-                    "secondary_100": theme.secondary_100,
-                    "secondary_200": theme.secondary_200,
-                    "secondary_300": theme.secondary_300,
-                    "secondary_400": theme.secondary_400,
-                    "secondary_500": theme.secondary_500,
-                    "secondary_600": theme.secondary_600,
-                    "secondary_700": theme.secondary_700,
-                    "secondary_800": theme.secondary_800,
-                    "secondary_900": theme.secondary_900,
-                    "surface": getattr(theme, "surface", "#e9edf0ba"),
-                }
+        if user_theme and user_theme.theme:
+            theme = user_theme.theme
+            theme_data_dict = {
+                "id": theme.id,
+                "primary_50": theme.primary_50,
+                "primary_100": theme.primary_100,
+                "primary_200": theme.primary_200,
+                "primary_300": theme.primary_300,
+                "primary_400": theme.primary_400,
+                "primary_500": theme.primary_500,
+                "primary_600": theme.primary_600,
+                "primary_700": theme.primary_700,
+                "primary_800": theme.primary_800,
+                "primary_900": theme.primary_900,
+                "dark_50": theme.dark_50,
+                "dark_100": theme.dark_100,
+                "dark_200": theme.dark_200,
+                "dark_300": theme.dark_300,
+                "dark_400": theme.dark_400,
+                "dark_500": theme.dark_500,
+                "dark_600": theme.dark_600,
+                "secondary_50": theme.secondary_50,
+                "secondary_100": theme.secondary_100,
+                "secondary_200": theme.secondary_200,
+                "secondary_300": theme.secondary_300,
+                "secondary_400": theme.secondary_400,
+                "secondary_500": theme.secondary_500,
+                "secondary_600": theme.secondary_600,
+                "secondary_700": theme.secondary_700,
+                "secondary_800": theme.secondary_800,
+                "secondary_900": theme.secondary_900,
+                "surface": getattr(theme, "surface", "#e9edf0ba"),
+            }
 
-                # Return tuple: (localStorage key, data to store)
-                return ("lastActiveTheme", theme_data_dict)
+            # Return tuple: (localStorage key, data to store)
+            return ("lastActiveTheme", theme_data_dict)
 
     return None
 

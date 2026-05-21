@@ -117,4 +117,34 @@ def branding(request):
     dictionary containing branding configuration values such as
     TITLE, LOGIN_WELCOME_LINE, LOGO_PATH, etc.
     """
-    return load_branding()
+    branding = load_branding()
+
+    # Compute active theme for the current request: user preference -> company -> default
+    try:
+        from horilla_theme.models import UserTheme, CompanyTheme, HorillaColorTheme
+
+        theme = None
+        if request.user.is_authenticated:
+            user_theme = (
+                UserTheme.objects.select_related("theme").filter(user=request.user).first()
+            )
+            if user_theme and user_theme.theme:
+                theme = user_theme.theme
+
+        if not theme:
+            active_company = getattr(request, "active_company", None)
+            if active_company:
+                company_theme = (
+                    CompanyTheme.objects.filter(company=active_company).select_related("theme").first()
+                )
+                if company_theme and company_theme.theme:
+                    theme = company_theme.theme
+
+        if not theme:
+            theme = HorillaColorTheme.get_default_theme()
+
+        branding["theme"] = theme
+    except Exception:
+        branding["theme"] = None
+
+    return branding
