@@ -4,6 +4,9 @@ Settings menu registry for Horilla, managing settings pages with permissions and
 
 from typing import Any, Dict, List, Type
 
+# Import main_section_menu to register the theme settings in the main sidebar
+from horilla.menu.main_section_menu import register as main_register
+
 settings_registry: List[Any] = []
 
 

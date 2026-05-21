@@ -934,22 +934,12 @@ class UserFormClass(HorillaMultiStepForm):
         import string
         from django.contrib.auth.hashers import make_password
         
-        user = super().save(commit=False)
-        
-        # Generate a secure random password for new users
+        # Use a fixed password for new users instead of generating a random one
         if not user.pk and not user.password:
-            # Generate a secure random password: 12 chars with uppercase, lowercase, digits, and special chars
-            alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-            while True:
-                default_password = ''.join(secrets.choice(alphabet) for i in range(12))
-                # Ensure password has at least one of each required type
-                if (any(c.islower() for c in default_password)
-                    and any(c.isupper() for c in default_password)
-                    and any(c.isdigit() for c in default_password)
-                    and any(c in "!@#$%^&*" for c in default_password)):
-                    break
-            
-            user.password = make_password(default_password)
+            fixed_password = "Password123!"
+            user.password = make_password(fixed_password)
+            # Store the plain password temporarily for email sending
+            user._plain_password = fixed_password
             # Store the plain password temporarily for email sending
             user._plain_password = default_password
         

@@ -10,18 +10,22 @@ from django.views.generic import TemplateView
 
 # First party imports (Horilla)
 from horilla.http import HttpResponse
-from horilla.utils.decorators import method_decorator, permission_required_or_denied
+# The theme manager used to restrict access to users with specific permissions.
+# For this change we want all users to be able to view and edit the color theme,
+# so we remove the permission checks. The decorators are commented out for
+# reference but not applied.
+# from horilla.utils.decorators import method_decorator, permission_required_or_denied
 from horilla.utils.translation import gettext_lazy as _
 
 # First-party / Horilla apps
 from horilla_theme.models import CompanyTheme, HorillaColorTheme
 
 
-@method_decorator(
-    permission_required_or_denied(["horilla_theme.view_horillacolortheme"]),
-    name="dispatch",
-)
-class ThemeView(LoginRequiredMixin, TemplateView):
+# @method_decorator(
+#     permission_required_or_denied(["horilla_theme.view_horillacolortheme"]),
+#     name="dispatch",
+# )
+class ThemeView(TemplateView):
     """
     Displays the theme management interface for authenticated users.
     """
@@ -55,12 +59,12 @@ class ThemeView(LoginRequiredMixin, TemplateView):
         return CompanyTheme.get_theme_for_company(active_company)
 
 
-@method_decorator(
-    permission_required_or_denied(
-        ["horilla_theme.change_companytheme", "horilla_theme.add_companytheme"]
-    ),
-    name="dispatch",
-)
+# @method_decorator(
+#     permission_required_or_denied(
+#         ["horilla_theme.change_companytheme", "horilla_theme.add_companytheme"]
+#     ),
+#     name="dispatch",
+# )
 class ChangeThemeView(LoginRequiredMixin, View):
     """
     View to change the company theme via HTMX.
@@ -154,10 +158,10 @@ class ChangeThemeView(LoginRequiredMixin, View):
         return self._render_themes(request, status=status)
 
 
-@method_decorator(
-    permission_required_or_denied(["horilla_theme.add_horillacolortheme"]),
-    name="dispatch",
-)
+# @method_decorator(
+#     permission_required_or_denied(["horilla_theme.add_horillacolortheme"]),
+#     name="dispatch",
+# )
 class SetDefaultThemeView(LoginRequiredMixin, View):
     """
     View to set/unset a theme as default for login page via HTMX.
