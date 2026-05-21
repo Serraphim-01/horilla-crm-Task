@@ -30,6 +30,11 @@ urlpatterns = [
         views.MicrosoftSSOSettingsView.as_view(),
         name="microsoft_sso_settings",
     ),
+    path(
+        "settings/microsoft-sso/sync-users/",
+        views.MicrosoftSSOSyncUsersView.as_view(),
+        name="microsoft_sso_sync_users",
+    ),
     path("active-tab/", views.SaveActiveTabView.as_view(), name="active_tab"),
     path("favicon.ico", views.FaviconRedirectView.as_view()),
     path("settings-view/", views.SettingView.as_view(), name="settings_view"),

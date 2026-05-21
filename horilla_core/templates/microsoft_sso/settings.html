@@ -21,6 +21,19 @@
         </div>
     </div>
 
+    <div class="mb-6">
+        <form method="post" action="{% url 'horilla_core:microsoft_sso_sync_users' %}" class="inline-block">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition duration-300">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4v6h6M21 20v-6h-6M4.93 4.93l4.24 4.24M19.07 19.07l-4.24-4.24M12 12a9 9 0 110 0 9 9 0 010 0z"/>
+                </svg>
+                {% trans "Sync Users from Azure AD" %}
+            </button>
+        </form>
+        <p class="text-xs text-gray-500 mt-2">{% trans "Pull all users from Entra ID into the local user database." %}</p>
+    </div>
+
     <div class="bg-white rounded-lg border border-gray-200 p-6">
         <form method="post" action="{% url 'horilla_core:microsoft_sso_settings' %}">
             {% csrf_token %}
@@ -93,17 +106,6 @@
                         {% if form.client_id.errors %}
                             <div class="bg-red-50 text-red-500 px-3 py-2 rounded text-xs mt-1">
                                 {% for error in form.client_id.errors %}
-
-            <!-- Sync Users Button -->
-            <div class="mb-6">
-                <h4 class="text-sm font-semibold text-gray-800 mb-4">{% trans "Sync Users" %}</h4>
-                <a href="{% url 'horilla_core:microsoft_sso_sync_users' %}" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition duration-300">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4v6h6M21 20v-6h-6M4.93 4.93l4.24 4.24M19.07 19.07l-4.24-4.24M12 12a9 9 0 110 0 9 9 0 010 0z"/>
-                    </svg>
-                    {% trans "Sync Users from Azure AD" %}
-                </a>
-            </div>
                                     {{ error }}
                                 {% endfor %}
                             </div>

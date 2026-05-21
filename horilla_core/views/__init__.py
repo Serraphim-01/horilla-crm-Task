@@ -23,6 +23,7 @@ from horilla_core.views.microsoft_sso import (
 
 from horilla_core.views.microsoft_sso_settings import (
     MicrosoftSSOSettingsView,
+    MicrosoftSSOSyncUsersView,
 )
 
 from horilla_core.views.branches import (
