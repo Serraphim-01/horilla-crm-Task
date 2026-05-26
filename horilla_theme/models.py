@@ -184,8 +184,12 @@ class HorillaColorTheme(models.Model):
         default_theme = cls.objects.filter(is_default=True).first()
         if default_theme:
             return default_theme
-        # Fallback to a yellow theme if the default coral theme is missing
-        return cls.objects.filter(name="Yellow Theme (Default)").first()
+        # Fallback to Coral Red theme if the default is missing (matches THEMES_DATA)
+        fallback = cls.objects.filter(name="Coral Red Theme (Default)").first()
+        if fallback:
+            return fallback
+        # Final fallback: return first theme if any exist
+        return cls.objects.first()
 
 
 class CompanyTheme(HorillaCoreModel):

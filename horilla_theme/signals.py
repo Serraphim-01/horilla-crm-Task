@@ -112,9 +112,14 @@ def add_theme_to_login_context(sender, request, context, **kwargs):
     Signal receiver to add theme data to login page context.
     Modifies the context dict directly.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         default_theme = HorillaColorTheme.get_default_theme()
-        context["theme"] = default_theme
-    except Exception:
-        # If anything goes wrong, theme stays None (not in context)
-        pass
+        if default_theme:
+            context["theme"] = default_theme
+        else:
+            logger.warning("No default theme found. Using template defaults.")
+    except Exception as e:
+        logger.error(f"Error adding theme to login context: {e}")

@@ -9,12 +9,32 @@ from horilla_theme.utils import THEMES_DATA
 class Command(BaseCommand):
     help = "Create default color themes for the CRM"
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--reset',
+            action='store_true',
+            help='Reset and recreate all themes',
+        )
+
     def handle(self, *args, **options):
+        reset = options.get('reset', False)
+        
+        if reset:
+            self.stdout.write("Resetting themes...")
+            HorillaColorTheme.objects.all().delete()
+            self.stdout.write(self.style.SUCCESS("All themes deleted."))
+
         # Check if themes already exist
-        if HorillaColorTheme.objects.exists():
+        if not reset and HorillaColorTheme.objects.exists():
             self.stdout.write(
-                self.style.WARNING("Themes already exist. Skipping creation.")
+                self.style.WARNING("Themes already exist. Use --reset to recreate them.")
             )
+            self.stdout.write("Ensuring default theme is set...")
+            try:
+                HorillaColorTheme.ensure_single_default()
+                self.stdout.write(self.style.SUCCESS("Default theme ensured."))
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"Error ensuring default theme: {e}"))
             return
 
         created_count = 0
@@ -47,6 +67,13 @@ class Command(BaseCommand):
                         f'✗ Error creating theme {theme_data["name"]}: {str(e)}'
                     )
                 )
+
+        # Ensure only one default theme is set
+        try:
+            HorillaColorTheme.ensure_single_default()
+            self.stdout.write(self.style.SUCCESS("Default theme ensured."))
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Error ensuring default theme: {e}"))
 
         self.stdout.write(
             self.style.SUCCESS(f"\nSuccessfully created {created_count} themes.")

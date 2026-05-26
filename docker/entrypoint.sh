@@ -18,9 +18,15 @@ done
 echo "PostgreSQL is ready!"
 
 # Run migrations
+echo "Running database migrations..."
 python manage.py migrate --noinput
 
+# Ensure theme data is initialized
+echo "Initializing theme data..."
+python manage.py create_default_themes
+
 # Collect static files
+echo "Collecting static files..."
 python manage.py collectstatic --noinput
 
 echo "Starting server..."
