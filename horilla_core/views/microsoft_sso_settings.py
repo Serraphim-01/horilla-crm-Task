@@ -6,7 +6,9 @@ This module contains views for managing Microsoft SSO configuration settings.
 
 import logging
 
+import pycountry
 import requests
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -16,8 +18,167 @@ from django.views import View
 
 from horilla.utils.translation import gettext_lazy as _
 from horilla_core.forms import MicrosoftSSOSettingsForm
-from horilla_core.models import Company, MicrosoftSSOSettings
+from horilla_core.models import Company, Department, MicrosoftSSOSettings, Role
 from horilla_core.views.microsoft_sso import get_msal_app
+
+
+def _normalize_country(country_value):
+    if not country_value:
+        return None
+
+    clean_value = country_value.strip()
+    if not clean_value:
+        return None
+
+    if len(clean_value) == 2:
+        try:
+            country = pycountry.countries.get(alpha_2=clean_value.upper())
+            return country.alpha_2 if country else None
+        except (LookupError, AttributeError):
+            return None
+
+    try:
+        countries = pycountry.countries.search_fuzzy(clean_value)
+        if countries:
+            return countries[0].alpha_2
+    except LookupError:
+        pass
+
+    try:
+        country = pycountry.countries.get(name=clean_value)
+        return country.alpha_2 if country else None
+    except (LookupError, AttributeError):
+        return None
+
+
+def _normalize_language(language_value):
+    if not language_value:
+        return None
+
+    normalized = language_value.strip().lower()
+    if not normalized:
+        return None
+
+    # Try exact matching against settings.LANGUAGES codes and labels
+    for code, name in settings.LANGUAGES:
+        if normalized == code.lower() or normalized == name.lower():
+            return code
+
+    # Match language code prefix, e.g. en-US -> en
+    if '-' in normalized:
+        prefix = normalized.split('-', 1)[0]
+        for code, name in settings.LANGUAGES:
+            if prefix == code.lower():
+                return code
+
+    # Match name or partial label
+    for code, name in settings.LANGUAGES:
+        if normalized in name.lower() or name.lower() in normalized:
+            return code
+
+    return None
+
+
+def _extract_primary_business_phone(graph_user):
+    phones = graph_user.get('businessPhones') or []
+    if isinstance(phones, list) and phones:
+        return phones[0]
+    if isinstance(phones, str) and phones.strip():
+        return phones.strip()
+    return None
+
+
+def _get_company_name(graph_user, email=None):
+    company_name = graph_user.get('companyName') or graph_user.get('company')
+    if company_name:
+        return company_name.strip()
+
+    if email:
+        domain = email.split('@')[-1]
+        if domain:
+            return domain.split('.')[0].replace('-', ' ').title()
+
+    return None
+
+
+def _get_or_create_default_company(graph_user, request_user=None):
+    email = graph_user.get('mail') or graph_user.get('userPrincipalName')
+    company_name = _get_company_name(graph_user, email=email)
+    if not company_name:
+        return Company.objects.filter(hq=True).first() or Company.objects.first()
+
+    company = Company.objects.filter(name__iexact=company_name).first()
+    country_code = _normalize_country(graph_user.get('country'))
+    language_code = _normalize_language(graph_user.get('preferredLanguage') or graph_user.get('preferred_language'))
+    phone = _extract_primary_business_phone(graph_user)
+    postal_code = graph_user.get('postalCode') or graph_user.get('postal_code')
+    city = graph_user.get('city')
+    email_address = email or f'no-reply@{email.split("@")[1]}' if email and '@' in email else ''
+
+    if company is None:
+        company = Company.objects.create(
+            name=company_name,
+            email=email_address,
+            contact_number=phone,
+            country=country_code or 'NG',
+            city=city or 'Lagos',
+            zip_code=postal_code or '101234',
+            language=language_code or 'en',
+            hq=True,
+            created_by=request_user,
+            updated_by=request_user,
+        )
+    else:
+        updated = False
+        if not company.hq:
+            company.hq = True
+            updated = True
+
+        if not company.email and email_address:
+            company.email = email_address
+            updated = True
+        if not company.contact_number and phone:
+            company.contact_number = phone
+            updated = True
+        if not company.country and country_code:
+            company.country = country_code
+            updated = True
+        if not company.city and city:
+            company.city = city
+            updated = True
+        if not company.zip_code and postal_code:
+            company.zip_code = postal_code
+            updated = True
+        if not company.language and language_code:
+            company.language = language_code
+            updated = True
+
+        if updated:
+            company.save()
+
+    return company
+
+
+def _get_or_create_department(company, department_name):
+    if not department_name:
+        return None
+    department_name = department_name.strip()
+    if not department_name:
+        return None
+    department, _ = Department.objects.get_or_create(
+        company=company, department_name=department_name
+    )
+    return department
+
+
+def _get_or_create_role(role_name):
+    if not role_name:
+        return None
+    role_name = role_name.strip()
+    if not role_name:
+        return None
+    role, _ = Role.objects.get_or_create(role_name=role_name)
+    return role
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +294,7 @@ class MicrosoftSSOSyncUsersView(LoginRequiredMixin, View):
         }
         url = 'https://graph.microsoft.com/v1.0/users'
         params = {
-            '$select': 'displayName,mail,userPrincipalName,givenName,surname',
+            '$select': 'displayName,mail,userPrincipalName,givenName,surname,department,jobTitle,businessPhones,postalCode,preferredLanguage,country,city,companyName',
             '$top': '999',
         }
 
@@ -165,6 +326,15 @@ class MicrosoftSSOSyncUsersView(LoginRequiredMixin, View):
                         first_name = parts[0] if parts else ''
                         last_name = parts[1] if len(parts) > 1 else ''
 
+                    company = _get_or_create_default_company(graph_user, request.user)
+                    department = _get_or_create_department(company, graph_user.get('department'))
+                    role = _get_or_create_role(graph_user.get('jobTitle'))
+                    contact_number = _extract_primary_business_phone(graph_user)
+                    language_code = _normalize_language(graph_user.get('preferredLanguage') or graph_user.get('preferred_language'))
+                    country_code = _normalize_country(graph_user.get('country'))
+                    postal_code = graph_user.get('postalCode') or graph_user.get('postal_code')
+                    city = graph_user.get('city')
+
                     existing_user = user_model.objects.filter(email__iexact=email).first()
                     if existing_user:
                         updated_fields = []
@@ -177,6 +347,30 @@ class MicrosoftSSOSyncUsersView(LoginRequiredMixin, View):
                         if not existing_user.is_active:
                             existing_user.is_active = True
                             updated_fields.append('is_active')
+                        if not existing_user.company and company:
+                            existing_user.company = company
+                            updated_fields.append('company')
+                        if not existing_user.department and department:
+                            existing_user.department = department
+                            updated_fields.append('department')
+                        if not existing_user.role and role:
+                            existing_user.role = role
+                            updated_fields.append('role')
+                        if not existing_user.contact_number and contact_number:
+                            existing_user.contact_number = contact_number
+                            updated_fields.append('contact_number')
+                        if not existing_user.language and language_code:
+                            existing_user.language = language_code
+                            updated_fields.append('language')
+                        if not existing_user.country and country_code:
+                            existing_user.country = country_code
+                            updated_fields.append('country')
+                        if not existing_user.zip_code and postal_code:
+                            existing_user.zip_code = postal_code
+                            updated_fields.append('zip_code')
+                        if not existing_user.city and city:
+                            existing_user.city = city
+                            updated_fields.append('city')
 
                         if updated_fields:
                             existing_user.save(update_fields=updated_fields)
@@ -190,7 +384,6 @@ class MicrosoftSSOSyncUsersView(LoginRequiredMixin, View):
                         username = f'{base_username}{suffix}'
                         suffix += 1
 
-                    company = Company.objects.filter(hq=True).first() or Company.objects.first()
                     new_user = user_model.objects.create(
                         username=username,
                         email=email,
@@ -198,7 +391,13 @@ class MicrosoftSSOSyncUsersView(LoginRequiredMixin, View):
                         last_name=last_name,
                         is_active=True,
                         company=company,
-                        country='US',
+                        department=department,
+                        role=role,
+                        contact_number=contact_number,
+                        language=language_code or 'en',
+                        country=country_code or 'NG',
+                        city=city or 'Lagos',
+                        zip_code=postal_code or '101234',
                     )
                     new_user.set_unusable_password()
                     new_user.save()
