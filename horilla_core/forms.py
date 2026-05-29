@@ -930,9 +930,9 @@ class UserFormClass(HorillaMultiStepForm):
 
     def save(self, commit=True):
         """Override save method to generate secure random password for new users."""
-        import secrets
-        import string
         from django.contrib.auth.hashers import make_password
+        
+        user = super().save(commit=False)
         
         # Use a fixed password for new users instead of generating a random one
         if not user.pk and not user.password:
@@ -940,8 +940,6 @@ class UserFormClass(HorillaMultiStepForm):
             user.password = make_password(fixed_password)
             # Store the plain password temporarily for email sending
             user._plain_password = fixed_password
-            # Store the plain password temporarily for email sending
-            user._plain_password = default_password
         
         if commit:
             user.save()
