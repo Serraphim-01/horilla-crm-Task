@@ -102,6 +102,19 @@ class MicrosoftSSOSettings(HorillaCoreModel):
         null=True,
     )
     
+    # Associated organization
+    company = models.ForeignKey(
+        "Company",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_("Organization"),
+        help_text=_(
+            "The organization this Azure AD tenant belongs to. "
+            "All synced users will be assigned to this organization."
+        ),
+    )
+
     # Protocol preference for redirect URI
     redirect_protocol = models.CharField(
         max_length=5,

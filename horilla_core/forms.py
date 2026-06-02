@@ -54,6 +54,7 @@ class MicrosoftSSOSettingsForm(forms.ModelForm):
         model = MicrosoftSSOSettings
         fields = [
             'is_enabled',
+            'company',
             'client_id',
             'client_secret',
             'tenant_id',
@@ -100,6 +101,9 @@ class MicrosoftSSOSettingsForm(forms.ModelForm):
                 'placeholder': 'Sign in with Microsoft',
             }),
             'redirect_protocol': forms.Select(attrs={
+                'class': 'form-control',
+            }),
+            'company': forms.Select(attrs={
                 'class': 'form-control',
             }),
         }

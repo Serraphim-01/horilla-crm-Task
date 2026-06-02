@@ -19,7 +19,6 @@ from django.views import View
 from horilla.utils.translation import gettext_lazy as _
 from horilla_core.forms import MicrosoftSSOSettingsForm
 from horilla_core.models import Company, Department, MicrosoftSSOSettings, Role
-from horilla_core.views.microsoft_sso import get_msal_app
 
 
 def _normalize_country(country_value):
@@ -88,77 +87,6 @@ def _extract_primary_business_phone(graph_user):
     return None
 
 
-def _get_company_name(graph_user, email=None):
-    company_name = graph_user.get('companyName') or graph_user.get('company')
-    if company_name:
-        return company_name.strip()
-
-    if email:
-        domain = email.split('@')[-1]
-        if domain:
-            return domain.split('.')[0].replace('-', ' ').title()
-
-    return None
-
-
-def _get_or_create_default_company(graph_user, request_user=None):
-    email = graph_user.get('mail') or graph_user.get('userPrincipalName')
-    company_name = _get_company_name(graph_user, email=email)
-    if not company_name:
-        return Company.objects.filter(hq=True).first() or Company.objects.first()
-
-    company = Company.objects.filter(name__iexact=company_name).first()
-    country_code = _normalize_country(graph_user.get('country'))
-    language_code = _normalize_language(graph_user.get('preferredLanguage') or graph_user.get('preferred_language'))
-    phone = _extract_primary_business_phone(graph_user)
-    postal_code = graph_user.get('postalCode') or graph_user.get('postal_code')
-    city = graph_user.get('city')
-    email_address = email or f'no-reply@{email.split("@")[1]}' if email and '@' in email else ''
-
-    if company is None:
-        company = Company.objects.create(
-            name=company_name,
-            email=email_address,
-            contact_number=phone,
-            country=country_code or 'NG',
-            city=city or 'Lagos',
-            zip_code=postal_code or '101234',
-            language=language_code or 'en',
-            hq=True,
-            created_by=request_user,
-            updated_by=request_user,
-        )
-    else:
-        updated = False
-        if not company.hq:
-            company.hq = True
-            updated = True
-
-        if not company.email and email_address:
-            company.email = email_address
-            updated = True
-        if not company.contact_number and phone:
-            company.contact_number = phone
-            updated = True
-        if not company.country and country_code:
-            company.country = country_code
-            updated = True
-        if not company.city and city:
-            company.city = city
-            updated = True
-        if not company.zip_code and postal_code:
-            company.zip_code = postal_code
-            updated = True
-        if not company.language and language_code:
-            company.language = language_code
-            updated = True
-
-        if updated:
-            company.save()
-
-    return company
-
-
 def _get_or_create_department(company, department_name):
     if not department_name:
         return None
@@ -179,6 +107,178 @@ def _get_or_create_role(role_name):
         return None
     role, _ = Role.objects.get_or_create(role_name=role_name)
     return role
+
+
+def perform_azure_ad_sync(sso_settings=None):
+    """
+    Perform Azure AD user sync without request context.
+
+    Uses the company configured on MicrosoftSSOSettings for all users.
+    Falls back to the HQ company if none is configured.
+
+    Returns:
+        dict: {'created': int, 'updated': int, 'skipped': int, 'error': str|None}
+    """
+    from horilla_core.views.microsoft_sso import get_msal_app
+
+    result = {'created': 0, 'updated': 0, 'skipped': 0, 'error': None}
+
+    if sso_settings is None:
+        sso_settings = MicrosoftSSOSettings.load()
+
+    if not sso_settings.is_enabled:
+        result['error'] = 'Microsoft SSO is not configured or enabled.'
+        return result
+
+    company = sso_settings.company
+    if company is None:
+        company = Company.objects.filter(hq=True).first() or Company.objects.first()
+        if company is None:
+            result['error'] = 'No company found. Please create a company first.'
+            return result
+
+    msal_app, _ = get_msal_app()
+    if msal_app is None:
+        result['error'] = 'Microsoft SSO is not configured or enabled.'
+        return result
+
+    token_response = msal_app.acquire_token_for_client(
+        scopes=['https://graph.microsoft.com/.default']
+    )
+
+    if 'access_token' not in token_response:
+        error = token_response.get('error', 'Unable to acquire Microsoft Graph token.')
+        error_description = token_response.get('error_description', '')
+        logger.error(
+            f"Microsoft Graph token acquisition error: {error} - {error_description}"
+        )
+        result['error'] = 'Failed to sync users from Azure AD. Check app permissions and credentials.'
+        return result
+
+    access_token = token_response['access_token']
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Accept': 'application/json',
+    }
+    url = 'https://graph.microsoft.com/v1.0/users'
+    params = {
+        '$select': 'displayName,mail,userPrincipalName,givenName,surname,department,jobTitle,businessPhones,postalCode,preferredLanguage,country,city,companyName',
+        '$top': '999',
+    }
+
+    user_model = get_user_model()
+
+    try:
+        while url:
+            response = requests.get(url, headers=headers, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            for graph_user in data.get('value', []):
+                email = graph_user.get('mail') or graph_user.get('userPrincipalName')
+                if not email:
+                    result['skipped'] += 1
+                    continue
+
+                if not sso_settings.is_domain_allowed(email):
+                    result['skipped'] += 1
+                    continue
+
+                first_name = graph_user.get('givenName') or ''
+                last_name = graph_user.get('surname') or ''
+                if not first_name and not last_name:
+                    display_name = graph_user.get('displayName') or ''
+                    parts = display_name.split(' ', 1)
+                    first_name = parts[0] if parts else ''
+                    last_name = parts[1] if len(parts) > 1 else ''
+
+                department = _get_or_create_department(company, graph_user.get('department'))
+                role = _get_or_create_role(graph_user.get('jobTitle'))
+                contact_number = _extract_primary_business_phone(graph_user)
+                language_code = _normalize_language(graph_user.get('preferredLanguage') or graph_user.get('preferred_language'))
+                country_code = _normalize_country(graph_user.get('country'))
+                postal_code = graph_user.get('postalCode') or graph_user.get('postal_code')
+                city = graph_user.get('city')
+
+                existing_user = user_model.objects.filter(email__iexact=email).first()
+                if existing_user:
+                    updated_fields = []
+                    if first_name and existing_user.first_name != first_name:
+                        existing_user.first_name = first_name
+                        updated_fields.append('first_name')
+                    if last_name and existing_user.last_name != last_name:
+                        existing_user.last_name = last_name
+                        updated_fields.append('last_name')
+                    if not existing_user.is_active:
+                        existing_user.is_active = True
+                        updated_fields.append('is_active')
+                    if existing_user.company != company:
+                        existing_user.company = company
+                        updated_fields.append('company')
+                    if not existing_user.department and department:
+                        existing_user.department = department
+                        updated_fields.append('department')
+                    if not existing_user.role and role:
+                        existing_user.role = role
+                        updated_fields.append('role')
+                    if not existing_user.contact_number and contact_number:
+                        existing_user.contact_number = contact_number
+                        updated_fields.append('contact_number')
+                    if not existing_user.language and language_code:
+                        existing_user.language = language_code
+                        updated_fields.append('language')
+                    if not existing_user.country and country_code:
+                        existing_user.country = country_code
+                        updated_fields.append('country')
+                    if not existing_user.zip_code and postal_code:
+                        existing_user.zip_code = postal_code
+                        updated_fields.append('zip_code')
+                    if not existing_user.city and city:
+                        existing_user.city = city
+                        updated_fields.append('city')
+
+                    if updated_fields:
+                        existing_user.save(update_fields=updated_fields)
+                        result['updated'] += 1
+                    continue
+
+                username = email.split('@')[0]
+                base_username = username
+                suffix = 1
+                while user_model.objects.filter(username=username).exists():
+                    username = f'{base_username}{suffix}'
+                    suffix += 1
+
+                new_user = user_model.objects.create(
+                    username=username,
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name,
+                    is_active=True,
+                    company=company,
+                    department=department,
+                    role=role,
+                    contact_number=contact_number,
+                    language=language_code or 'en',
+                    country=country_code or 'NG',
+                    city=city or 'Lagos',
+                    zip_code=postal_code or '101234',
+                )
+                new_user.set_unusable_password()
+                new_user.save()
+                result['created'] += 1
+
+            url = data.get('@odata.nextLink')
+            params = None
+
+    except requests.RequestException as error:
+        logger.error(f'Microsoft Graph sync failed: {error}', exc_info=True)
+        result['error'] = 'Failed to sync users from Azure AD. Please try again later.'
+    except Exception as error:
+        logger.error(f'Unexpected error syncing users from Azure AD: {error}', exc_info=True)
+        result['error'] = 'An unexpected error occurred while syncing users.'
+
+    return result
+
 
 logger = logging.getLogger(__name__)
 
@@ -269,158 +369,31 @@ class MicrosoftSSOSyncUsersView(LoginRequiredMixin, View):
             messages.error(request, _('You do not have permission to perform this action.'))
             return redirect(self.success_url)
 
-        msal_app, sso_settings = get_msal_app(request)
-        if msal_app is None:
+        sso_settings = MicrosoftSSOSettings.load()
+        if not sso_settings.is_enabled:
             messages.error(request, _('Microsoft SSO is not configured or enabled.'))
             return redirect(self.success_url)
 
-        token_response = msal_app.acquire_token_for_client(
-            scopes=['https://graph.microsoft.com/.default']
-        )
-
-        if 'access_token' not in token_response:
-            error = token_response.get('error', _('Unable to acquire Microsoft Graph token.'))
-            error_description = token_response.get('error_description', '')
-            logger.error(
-                f"Microsoft Graph token acquisition error: {error} - {error_description}"
+        if sso_settings.company is None:
+            messages.error(
+                request,
+                _('No organization is associated with this Azure AD configuration. '
+                  'Please select an organization in the Microsoft SSO settings first.'),
             )
-            messages.error(request, _('Failed to sync users from Azure AD. Check app permissions and credentials.'))
             return redirect(self.success_url)
 
-        access_token = token_response['access_token']
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Accept': 'application/json',
-        }
-        url = 'https://graph.microsoft.com/v1.0/users'
-        params = {
-            '$select': 'displayName,mail,userPrincipalName,givenName,surname,department,jobTitle,businessPhones,postalCode,preferredLanguage,country,city,companyName',
-            '$top': '999',
-        }
+        result = perform_azure_ad_sync(sso_settings)
 
-        created = 0
-        updated = 0
-        skipped = 0
-        user_model = get_user_model()
+        if result['error']:
+            messages.error(request, result['error'])
+        else:
+            messages.success(
+                request,
+                _('Microsoft Azure AD sync completed: %(created)s created, %(updated)s updated, %(skipped)s skipped.') % {
+                    'created': result['created'],
+                    'updated': result['updated'],
+                    'skipped': result['skipped'],
+                },
+            )
 
-        try:
-            while url:
-                response = requests.get(url, headers=headers, params=params, timeout=30)
-                response.raise_for_status()
-                data = response.json()
-                for graph_user in data.get('value', []):
-                    email = graph_user.get('mail') or graph_user.get('userPrincipalName')
-                    if not email:
-                        skipped += 1
-                        continue
-
-                    if not sso_settings.is_domain_allowed(email):
-                        skipped += 1
-                        continue
-
-                    first_name = graph_user.get('givenName') or ''
-                    last_name = graph_user.get('surname') or ''
-                    if not first_name and not last_name:
-                        display_name = graph_user.get('displayName') or ''
-                        parts = display_name.split(' ', 1)
-                        first_name = parts[0] if parts else ''
-                        last_name = parts[1] if len(parts) > 1 else ''
-
-                    company = _get_or_create_default_company(graph_user, request.user)
-                    department = _get_or_create_department(company, graph_user.get('department'))
-                    role = _get_or_create_role(graph_user.get('jobTitle'))
-                    contact_number = _extract_primary_business_phone(graph_user)
-                    language_code = _normalize_language(graph_user.get('preferredLanguage') or graph_user.get('preferred_language'))
-                    country_code = _normalize_country(graph_user.get('country'))
-                    postal_code = graph_user.get('postalCode') or graph_user.get('postal_code')
-                    city = graph_user.get('city')
-
-                    existing_user = user_model.objects.filter(email__iexact=email).first()
-                    if existing_user:
-                        updated_fields = []
-                        if first_name and existing_user.first_name != first_name:
-                            existing_user.first_name = first_name
-                            updated_fields.append('first_name')
-                        if last_name and existing_user.last_name != last_name:
-                            existing_user.last_name = last_name
-                            updated_fields.append('last_name')
-                        if not existing_user.is_active:
-                            existing_user.is_active = True
-                            updated_fields.append('is_active')
-                        if not existing_user.company and company:
-                            existing_user.company = company
-                            updated_fields.append('company')
-                        if not existing_user.department and department:
-                            existing_user.department = department
-                            updated_fields.append('department')
-                        if not existing_user.role and role:
-                            existing_user.role = role
-                            updated_fields.append('role')
-                        if not existing_user.contact_number and contact_number:
-                            existing_user.contact_number = contact_number
-                            updated_fields.append('contact_number')
-                        if not existing_user.language and language_code:
-                            existing_user.language = language_code
-                            updated_fields.append('language')
-                        if not existing_user.country and country_code:
-                            existing_user.country = country_code
-                            updated_fields.append('country')
-                        if not existing_user.zip_code and postal_code:
-                            existing_user.zip_code = postal_code
-                            updated_fields.append('zip_code')
-                        if not existing_user.city and city:
-                            existing_user.city = city
-                            updated_fields.append('city')
-
-                        if updated_fields:
-                            existing_user.save(update_fields=updated_fields)
-                            updated += 1
-                        continue
-
-                    username = email.split('@')[0]
-                    base_username = username
-                    suffix = 1
-                    while user_model.objects.filter(username=username).exists():
-                        username = f'{base_username}{suffix}'
-                        suffix += 1
-
-                    new_user = user_model.objects.create(
-                        username=username,
-                        email=email,
-                        first_name=first_name,
-                        last_name=last_name,
-                        is_active=True,
-                        company=company,
-                        department=department,
-                        role=role,
-                        contact_number=contact_number,
-                        language=language_code or 'en',
-                        country=country_code or 'NG',
-                        city=city or 'Lagos',
-                        zip_code=postal_code or '101234',
-                    )
-                    new_user.set_unusable_password()
-                    new_user.save()
-                    created += 1
-
-                url = data.get('@odata.nextLink')
-                params = None
-
-        except requests.RequestException as error:
-            logger.error(f'Microsoft Graph sync failed: {error}', exc_info=True)
-            messages.error(request, _('Failed to sync users from Azure AD. Please try again later.'))
-            return redirect(self.success_url)
-        except Exception as error:
-            logger.error(f'Unexpected error syncing users from Azure AD: {error}', exc_info=True)
-            messages.error(request, _('An unexpected error occurred while syncing users.'))
-            return redirect(self.success_url)
-
-        messages.success(
-            request,
-            _('Microsoft Azure AD sync completed: %(created)s created, %(updated)s updated, %(skipped)s skipped.') % {
-                'created': created,
-                'updated': updated,
-                'skipped': skipped,
-            },
-        )
         return redirect(self.success_url)
