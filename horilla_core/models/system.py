@@ -6,6 +6,10 @@ including settings and about system information.
 # Standard library imports
 import logging
 
+# Third-party imports (Django)
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
+
 # First-party / Horilla imports
 from horilla.db import models
 from horilla.registry.permission_registry import permission_exempt_model
