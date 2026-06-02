@@ -59,6 +59,7 @@ from horilla_core.models.system import (
     HorillaSettings,
     HorillaAboutSystem,
     ActiveTab,
+    DemoDataRecord,
 )
 from horilla_core.models.user import (
     HorillaUser,
@@ -115,4 +116,5 @@ __all__ = [
     "ListColumnVisibility",
     "DetailFieldVisibility",
     "MicrosoftSSOSettings",
+    "DemoDataRecord",
 ]

@@ -139,6 +139,29 @@ def _get_current_fiscal_periods(company):
     return current_fy, current_quarter, current_period
 
 
+MAX_DEMO_RECORDS = 50
+
+
+def _track_demo_records(company, records):
+    """
+    Track generated demo records in DemoDataRecord so they can be cleared later.
+    """
+    from django.contrib.contenttypes.models import ContentType
+    from horilla_core.models import DemoDataRecord
+
+    to_create = []
+    for obj in records:
+        ct = ContentType.objects.get_for_model(obj)
+        to_create.append(
+            DemoDataRecord(
+                company=company,
+                content_type=ct,
+                object_id=obj.pk,
+            )
+        )
+    DemoDataRecord.objects.bulk_create(to_create, ignore_conflicts=True)
+
+
 def generate_demo_data(company):
     """Generate demo CRM data using existing users tied to the given company."""
     Account = apps.get_model("accounts", "Account")
@@ -160,6 +183,8 @@ def generate_demo_data(company):
     current_fy, current_quarter, current_period = _get_current_fiscal_periods(company)
 
     random.seed(42)
+
+    all_tracked = []
 
     with transaction.atomic():
         campaigns = []
@@ -186,9 +211,11 @@ def generate_demo_data(company):
                 },
             )
             campaigns.append(campaign)
+        all_tracked.extend(campaigns)
 
         accounts = []
-        sample_accounts = random.sample(ACCOUNT_NAMES, min(len(ACCOUNT_NAMES), max(6, len(users) * 2)))
+        num_accounts = min(MAX_DEMO_RECORDS, max(4, len(users) * 2))
+        sample_accounts = random.sample(ACCOUNT_NAMES, min(len(ACCOUNT_NAMES), num_accounts))
         for i, acct_name in enumerate(sample_accounts):
             owner = random.choice(users)
             industry = random.choice(INDUSTRIES)
@@ -208,10 +235,15 @@ def generate_demo_data(company):
                 },
             )
             accounts.append(account)
+        all_tracked.extend(accounts)
 
         contacts = []
+        contacts_created = 0
         for account in accounts:
-            for _ in range(random.randint(1, 3)):
+            if contacts_created >= MAX_DEMO_RECORDS:
+                break
+            num_new = min(random.randint(1, 3), MAX_DEMO_RECORDS - contacts_created)
+            for _ in range(num_new):
                 first = random.choice(FIRST_NAMES)
                 last = random.choice(LAST_NAMES)
                 owner = account.account_owner
@@ -228,16 +260,19 @@ def generate_demo_data(company):
                     },
                 )
                 contacts.append(contact)
+                contacts_created += 1
                 ContactAccountRelationship.objects.get_or_create(
                     contact=contact,
                     account=account,
                     company=company,
                     defaults={"role": random.choice(list(customer_roles.values()))},
                 )
+        all_tracked.extend(contacts)
 
         leads = []
         lead_status_values = list(lead_statuses.values())
-        for _ in range(max(5, len(users) * 3)):
+        lead_count = min(MAX_DEMO_RECORDS, max(5, len(users) * 3))
+        for _ in range(lead_count):
             first = random.choice(FIRST_NAMES)
             last = random.choice(LAST_NAMES)
             owner = random.choice(users)
@@ -266,9 +301,11 @@ def generate_demo_data(company):
                 },
             )
             leads.append(lead)
+        all_tracked.extend(leads)
 
         opportunities = []
-        for _ in range(max(5, len(users) * 3)):
+        opp_count = min(MAX_DEMO_RECORDS, max(5, len(users) * 3))
+        for _ in range(opp_count):
             owner = random.choice(users)
             stage = random.choice(list(opp_stages.values()))
             amount = random.choice([5000, 10000, 15000, 25000, 50000, 75000, 100000, 150000, 250000])
@@ -295,6 +332,7 @@ def generate_demo_data(company):
                 },
             )
             opportunities.append(opportunity)
+        all_tracked.extend(opportunities)
 
         total_pipeline = sum(o.amount for o in opportunities if o.forecast_category == "pipeline" and o.amount)
         total_best_case = sum(o.amount for o in opportunities if o.forecast_category == "best_case" and o.amount)
@@ -336,6 +374,8 @@ def generate_demo_data(company):
                 value_won_opportunities=models.F("value_won_opportunities") + updates["value"],
                 opportunities_in_campaign=models.F("opportunities_in_campaign") + len([o for o in opportunities if o.primary_campaign_source and o.primary_campaign_source.pk == camp_pk]),
             )
+
+    _track_demo_records(company, all_tracked)
 
     return {
         "accounts": len(accounts),

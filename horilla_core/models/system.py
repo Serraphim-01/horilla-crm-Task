@@ -56,3 +56,27 @@ class ActiveTab(HorillaCoreModel):
 
     path = models.CharField(max_length=256)
     tab_target = models.CharField(max_length=256)
+
+
+class DemoDataRecord(models.Model):
+    """
+    Tracks records created by demo data generation,
+    so they can be cleared later.
+    """
+
+    company = models.ForeignKey(
+        "horilla_core.Company",
+        on_delete=models.CASCADE,
+        related_name="demo_data_records",
+    )
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey("content_type", "object_id")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Demo Data Record")
+        verbose_name_plural = _("Demo Data Records")
+        indexes = [
+            models.Index(fields=["company", "content_type"]),
+        ]

@@ -7,7 +7,10 @@ from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 
-from horilla_core.models import Company
+from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
+
+from horilla_core.models import Company, DemoDataRecord
 from horilla_core.tasks import generate_demo_data_task
 
 
@@ -34,6 +37,50 @@ class GenerateDemoDataView(LoginRequiredMixin, View):
             _("Demo data generation has been started in the background. It may take a few moments to complete."),
         )
 
+        return redirect(self.success_url)
+
+
+class ClearDemoDataView(LoginRequiredMixin, View):
+    """Delete all previously generated demo data for the current company."""
+
+    success_url = reverse_lazy("horilla_core:company_information")
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            messages.error(request, _("You do not have permission to perform this action."))
+            return redirect(self.success_url)
+
+        company = getattr(request, "active_company", None)
+        if not company:
+            company = request.user.company
+        if not company:
+            messages.error(request, _("No active company found."))
+            return redirect(self.success_url)
+
+        records = DemoDataRecord.objects.filter(company=company).select_related(
+            "content_type"
+        )
+
+        if not records.exists():
+            messages.info(request, _("No demo data found to clear."))
+            return redirect(self.success_url)
+
+        count = records.count()
+        deleted_objects = 0
+        with transaction.atomic():
+            for record in records:
+                model_class = record.content_type.model_class()
+                if model_class:
+                    deleted, _ = model_class.objects.filter(pk=record.object_id).delete()
+                    deleted_objects += deleted
+            deleted_records = records.delete()
+
+        messages.success(
+            request,
+            _("Cleared {count} demo data records ({deleted} objects deleted).").format(
+                count=count, deleted=deleted_objects
+            ),
+        )
         return redirect(self.success_url)
 
 

@@ -25,6 +25,12 @@
                     {% trans 'Generate Demo Data' %}
                 </button>
             </form>
+            <form method="post" action="{% url 'horilla_core:clear_demo_data' %}" class="inline-block ml-2" onsubmit="return confirm('{% trans "Are you sure you want to clear all generated demo data?" %}');">
+                {% csrf_token %}
+                <button type="submit" class="text-sm px-4 py-2 bg-red-500 rounded-md hover:bg-red-700 transition duration-300 text-[white]">
+                    {% trans 'Clear Demo Data' %}
+                </button>
+            </form>
             <form method="post" action="{% url 'horilla_core:cleanup_companies' %}" class="inline-block ml-2" onsubmit="return confirm('{% trans "Are you sure you want to delete all non-base companies?" %}');">
                 {% csrf_token %}
                 <button type="submit" class="text-sm px-4 py-2 bg-red-500 rounded-md hover:bg-red-700 transition duration-300 text-[white]">

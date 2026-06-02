@@ -45,6 +45,11 @@ urlpatterns = [
         name="generate_demo_data",
     ),
     path(
+        "clear-demo-data/",
+        views.ClearDemoDataView.as_view(),
+        name="clear_demo_data",
+    ),
+    path(
         "cleanup-companies/",
         views.CleanupCompaniesView.as_view(),
         name="cleanup_companies",
