@@ -8,7 +8,7 @@ from django.utils.translation import gettext_lazy as _
 from django.views import View
 
 from horilla_core.models import Company
-from horilla_core.services.demo_data_service import generate_demo_data
+from horilla_core.tasks import generate_demo_data_task
 
 
 class GenerateDemoDataView(LoginRequiredMixin, View):
@@ -28,20 +28,11 @@ class GenerateDemoDataView(LoginRequiredMixin, View):
             messages.error(request, _("No active company found."))
             return redirect(self.success_url)
 
-        try:
-            result = generate_demo_data(company)
-            messages.success(
-                request,
-                _("Demo data generated: {accounts} accounts, {contacts} contacts, {leads} leads, {opportunities} opportunities, {campaigns} campaigns.").format(
-                    accounts=result["accounts"],
-                    contacts=result["contacts"],
-                    leads=result["leads"],
-                    opportunities=result["opportunities"],
-                    campaigns=result["campaigns"],
-                ),
-            )
-        except Exception as e:
-            messages.error(request, _("Error generating demo data: {}").format(str(e)))
+        generate_demo_data_task.delay(company.pk)
+        messages.success(
+            request,
+            _("Demo data generation has been started in the background. It may take a few moments to complete."),
+        )
 
         return redirect(self.success_url)
 

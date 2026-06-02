@@ -628,6 +628,28 @@ def get_content_type(export_format):
     return content_types.get(export_format, "application/octet-stream")
 
 
+@shared_task(bind=True, max_retries=1)
+def generate_demo_data_task(self, company_id):
+    """
+    Celery task to generate demo CRM data for a company.
+    """
+    from horilla_core.models import Company
+    from horilla_core.services.demo_data_service import generate_demo_data
+
+    try:
+        company = Company.objects.get(pk=company_id)
+        result = generate_demo_data(company)
+        logger.info(
+            "Demo data generated for company %s: %s",
+            company.name,
+            result,
+        )
+        return result
+    except Exception as e:
+        logger.error("Failed to generate demo data: %s", e)
+        raise self.retry(exc=e)
+
+
 @shared_task
 def cleanup_old_schedules():
     """
