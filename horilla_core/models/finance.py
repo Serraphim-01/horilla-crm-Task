@@ -456,7 +456,7 @@ class FiscalYear(HorillaCoreModel):
             ("ending_year", _("Ending Year")),
         ],
         verbose_name=_("Display Fiscal Year Based On"),
-        default="starting_year",
+        default="ending_year",
     )
     number_weeks_by = models.CharField(
         max_length=20,

@@ -44,7 +44,7 @@ class FiscalYearService:
                 fiscal_year_type="standard",
                 start_date_month="january",
                 start_date_day=1,
-                display_year_based_on="starting_year",
+                display_year_based_on="ending_year",
             )
             config.save()
             return config
@@ -668,14 +668,9 @@ class FiscalYearService:
             new_end_date = new_start_date + relativedelta(years=1) - timedelta(days=2)
 
         if config.display_year_based_on == "starting_year":
-            year_name = new_start_date.year
+            name = f"FY {new_start_date.year}"
         else:
-            year_name = new_end_date.year
-
-        if config.display_year_based_on == "starting_year":
-            name = f"FY {year_name}"
-        else:
-            name = f"FY {year_name + 1}"
+            name = f"FY {new_end_date.year}"
 
         # Check if fiscal year already exists
         existing_fy = FiscalYearInstance.objects.filter(
