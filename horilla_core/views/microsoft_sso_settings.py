@@ -12,6 +12,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import models
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.views import View
@@ -109,12 +110,58 @@ def _get_or_create_role(role_name):
     return role
 
 
+def _ensure_company_persisted(sso_settings, company):
+    """Persist the company back to MicrosoftSSOSettings so it's saved for future runs."""
+    if sso_settings.company_id != company.id:
+        sso_settings.company = company
+        sso_settings.save()
+
+
+def _migrate_all_users_to_company(company):
+    """Move every existing user to the given company."""
+    user_model = get_user_model()
+    updated = user_model.objects.filter(~models.Q(company=company)).update(company=company)
+    if updated:
+        logger.info("Migrated %d existing users to company: %s", updated, company)
+    return updated
+
+
+def _consolidate_companies(target_company):
+    """
+    Merge duplicate companies created by the old domain-based sync logic.
+
+    Finds companies whose name matches case-insensitively (the old sync could
+    create "Contoso" from companyName and "Contoso" from email domain, etc.).
+    Users are moved to the target company, and the duplicates are deleted.
+    """
+    user_model = get_user_model()
+    duplicates = Company.objects.filter(
+        name__iexact=target_company.name
+    ).exclude(pk=target_company.pk)
+
+    removed = 0
+    for dup in duplicates:
+        user_model.objects.filter(company=dup).update(company=target_company)
+        try:
+            dup.delete()
+            removed += 1
+            logger.info("Removed duplicate company: %s (pk=%d)", dup.name, dup.pk)
+        except Exception as e:
+            logger.warning(
+                "Could not delete company %s (pk=%d): %s", dup.name, dup.pk, e
+            )
+    if removed:
+        logger.info("Consolidated %d duplicate companies into: %s", removed, target_company)
+    return removed
+
+
 def perform_azure_ad_sync(sso_settings=None):
     """
     Perform Azure AD user sync without request context.
 
-    Uses the company configured on MicrosoftSSOSettings for all users.
-    Falls back to the HQ company if none is configured.
+    Determines the target company (from sso_settings, HQ fallback), persists it,
+    migrates all existing users to it, consolidates duplicate companies, then
+    syncs users from Microsoft Graph.
 
     Returns:
         dict: {'created': int, 'updated': int, 'skipped': int, 'error': str|None}
@@ -136,6 +183,10 @@ def perform_azure_ad_sync(sso_settings=None):
         if company is None:
             result['error'] = 'No company found. Please create a company first.'
             return result
+
+    _ensure_company_persisted(sso_settings, company)
+    _migrate_all_users_to_company(company)
+    _consolidate_companies(company)
 
     msal_app, _ = get_msal_app()
     if msal_app is None:
@@ -374,22 +425,17 @@ class MicrosoftSSOSyncUsersView(LoginRequiredMixin, View):
             messages.error(request, _('Microsoft SSO is not configured or enabled.'))
             return redirect(self.success_url)
 
-        if sso_settings.company is None:
-            messages.error(
-                request,
-                _('No organization is associated with this Azure AD configuration. '
-                  'Please select an organization in the Microsoft SSO settings first.'),
-            )
-            return redirect(self.success_url)
-
         result = perform_azure_ad_sync(sso_settings)
 
         if result['error']:
             messages.error(request, result['error'])
         else:
+            company = sso_settings.company
             messages.success(
                 request,
-                _('Microsoft Azure AD sync completed: %(created)s created, %(updated)s updated, %(skipped)s skipped.') % {
+                _('Microsoft Azure AD sync completed for "%(company)s": '
+                  '%(created)s created, %(updated)s updated, %(skipped)s skipped.') % {
+                    'company': company.name if company else _('Unknown'),
                     'created': result['created'],
                     'updated': result['updated'],
                     'skipped': result['skipped'],
