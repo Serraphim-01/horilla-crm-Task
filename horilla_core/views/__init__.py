@@ -247,6 +247,11 @@ from horilla_core.views.business_hour import (
     BusinessHourDetailView,
 )
 
+from horilla_core.views.demo_data import (
+    GenerateDemoDataView,
+    CleanupCompaniesView,
+)
+
 from horilla_core.views.holiday import (
     HolidayView,
     HolidayListView,
@@ -456,6 +461,9 @@ __all__ = [
     "BusinessHourFormView",
     "BusinessHourDeleteView",
     "BusinessHourDetailView",
+    # demo_data.py
+    "GenerateDemoDataView",
+    "CleanupCompaniesView",
     # holiday.py
     "HolidayView",
     "HolidayListView",

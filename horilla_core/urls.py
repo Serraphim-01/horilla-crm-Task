@@ -40,6 +40,16 @@ urlpatterns = [
     path("settings-view/", views.SettingView.as_view(), name="settings_view"),
     path("my-settings-view/", views.MySettingView.as_view(), name="my_settings_view"),
     path(
+        "generate-demo-data/",
+        views.GenerateDemoDataView.as_view(),
+        name="generate_demo_data",
+    ),
+    path(
+        "cleanup-companies/",
+        views.CleanupCompaniesView.as_view(),
+        name="cleanup_companies",
+    ),
+    path(
         "company-details-tab/",
         views.CompanyDetailsTab.as_view(),
         name="company_details_tab",

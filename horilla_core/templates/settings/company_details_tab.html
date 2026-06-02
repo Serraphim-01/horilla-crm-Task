@@ -19,6 +19,18 @@
                     <img src="{% static '/assets/icons/edit.svg' %}" alt="{% trans 'Edit' %}" width="15" />
                 </button>
             {% endif %}
+            <form method="post" action="{% url 'horilla_core:generate_demo_data' %}" class="inline-block ml-2">
+                {% csrf_token %}
+                <button type="submit" class="text-sm px-4 py-2 bg-primary-600 rounded-md hover:bg-primary-800 transition duration-300 text-[white]">
+                    {% trans 'Generate Demo Data' %}
+                </button>
+            </form>
+            <form method="post" action="{% url 'horilla_core:cleanup_companies' %}" class="inline-block ml-2" onsubmit="return confirm('{% trans "Are you sure you want to delete all non-base companies?" %}');">
+                {% csrf_token %}
+                <button type="submit" class="text-sm px-4 py-2 bg-red-500 rounded-md hover:bg-red-700 transition duration-300 text-[white]">
+                    {% trans 'Cleanup Companies' %}
+                </button>
+            </form>
         {% endif %}
     </div>
     <div class="grid columns-1 lg:grid-cols-2 gap-4">

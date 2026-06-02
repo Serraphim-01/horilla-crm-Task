@@ -426,6 +426,137 @@ Widget fields:
 
 ---
 
+## 9. Roles & Role Types
+
+Horilla CRM defines four distinct role types, each serving a different purpose. All are stored in `horilla_core/models/organization.py`.
+
+### 9a. Role
+
+The general organizational **Role** governs system-wide user permissions. Each user is assigned one via `HorillaUser.role`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `role_name` | `CharField` | Name (e.g., "Sales Manager", "Admin") |
+| `parent_role` | `FK(self)` | Hierarchical parent (for subroles) |
+| `permissions` | `M2M(Permission)` | Django permissions attached to the role |
+
+**Used in CRM**: `ForecastTarget.role` — determines org hierarchy for forecast targets.
+
+### 9b. Team Role
+
+**TeamRole** defines a user's function on a specific **opportunity team** (no system permissions — just a label).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `team_role_name` | `CharField` | Name (e.g., "Sales Engineer", "Account Manager") |
+| `description` | `TextField` | Optional description |
+
+**Used in CRM**: `OpportunityTeamMember.team_role` — what role this user plays on this deal. Also `DefaultOpportunityMember.team_role` for auto-assignment defaults.
+
+### 9c. Customer Role
+
+**CustomerRole** defines what function a **contact** plays for an account or opportunity (e.g., "Decision Maker", "Champion", "End User").
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `customer_role_name` | `CharField` | Name (e.g., "Decision Maker", "Technical Evaluator") |
+| `description` | `TextField` | Optional description |
+
+**Used in CRM**: `ContactAccountRelationship.role` — the contact's role in the account. Also `OpportunityContactRole.role` — the contact's role on a specific opportunity.
+
+### 9d. Partner Role
+
+**PartnerRole** defines the type of **partner relationship** between two accounts (e.g., "Reseller", "Technology Partner").
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `partner_role_name` | `CharField` | Name (e.g., "Reseller", "Installation Partner") |
+| `description` | `TextField` | Optional description |
+
+**Used in CRM**: `PartnerAccountRelationship.role` — what type of partnership two accounts have.
+
+### Summary
+
+| Role | Scope | Linked From | Example Values |
+|------|-------|-------------|----------------|
+| **Role** | System-wide user permissions | `HorillaUser.role`, `ForecastTarget.role` | Sales Manager, Admin |
+| **Team Role** | User's function on an opportunity team | `OpportunityTeamMember.team_role` | Sales Engineer, Account Manager |
+| **Customer Role** | Contact's function for an account/opportunity | `ContactAccountRelationship.role`, `OpportunityContactRole.role` | Decision Maker, Champion |
+| **Partner Role** | Relationship type between two accounts | `PartnerAccountRelationship.role` | Reseller, Technology Partner |
+
+---
+
+## 10. Scoring Rules
+
+Defined in `horilla_crm/leads/models.py`. A **3-tier rules engine** that auto-calculates scores on Leads, Opportunities, Accounts, and Contacts at save time.
+
+### Architecture
+
+```
+ScoringRule ──1:N──> ScoringCriterion ──1:N──> ScoringCondition
+                              │
+                    EmailActivityScoring (bonus for email engagement)
+```
+
+### 10a. ScoringRule
+
+Top-level rule scoped to a CRM module.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `CharField` | Rule name |
+| `module` | `CharField` | Target entity: `lead`, `opportunity`, `account`, `contact` |
+| `is_active` | `BooleanField` | Enable/disable the rule |
+
+### 10b. ScoringCriterion
+
+A group of conditions that awards or subtracts points when all conditions match.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `rule` | `FK(ScoringRule)` | Parent rule |
+| `points` | `IntegerField` | Points to award/subtract |
+| `operation_type` | `CharField` | `add` or `sub` |
+| `order` | `PositiveIntegerField` | Evaluation order |
+
+### 10c. ScoringCondition
+
+A single field comparison against the entity's data.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `criterion` | `FK(ScoringCriterion)` | Parent criterion |
+| `field` | `CharField` | Model field to evaluate (e.g., `annual_revenue`, `industry`) |
+| `operator` | `CharField` | Comparison: `equals`, `contains`, `gt`, `lt`, `between`, `is_empty`, etc. |
+| `value` | `CharField` | Value to compare against |
+| `logical_operator` | `CharField` | `and` / `or` — how to combine with next condition |
+| `order` | `PositiveIntegerField` | Evaluation order |
+
+### 10d. EmailActivityScoring
+
+Bonus scoring for email engagement events.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `rule` | `FK(ScoringRule)` | Parent rule |
+| `activity_type` | `CharField` | `opened`, `clicked`, or `bounced` |
+| `points` | `IntegerField` | Points awarded (default: 10) |
+
+### How Scoring Works
+
+The `compute_score()` function (`leads/utils.py`) runs on every `pre_save` via signals:
+
+1. Determines the module from the model type (Lead → `lead`, Opportunity → `opportunity`, etc.)
+2. Fetches all active `ScoringRule` records for that module
+3. For each rule, evaluates its `ScoringCriterion` records in order
+4. Each criterion checks its `ScoringCondition` list — all conditions must match (combined via `and`/`or`)
+5. If a criterion matches, its `points` are added or subtracted
+6. The total is stored in the entity's score field (`lead_score`, `opportunity_score`, `account_score`, `contact_score`)
+
+**Example**: A Lead with `industry = "Technology"` and `annual_revenue > $1M` might get +30 points, moving it from "Cold" to "Warm" priority.
+
+---
+
 ## Module Relationship Flow — End to End Example
 
 ```
