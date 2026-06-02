@@ -59,7 +59,7 @@ def _get_or_create_default_roles(company):
 
 
 def _get_or_create_lead_statuses(company):
-    LeadStatus = apps.get_model("horilla_crm", "LeadStatus")
+    LeadStatus = apps.get_model("leads", "LeadStatus")
     statuses = {}
     defaults = [
         ("New", 1, 10, False),
@@ -79,7 +79,7 @@ def _get_or_create_lead_statuses(company):
 
 
 def _get_or_create_opportunity_stages(company):
-    OpportunityStage = apps.get_model("horilla_crm", "OpportunityStage")
+    OpportunityStage = apps.get_model("opportunities", "OpportunityStage")
     stages = {}
     defaults = [
         ("Qualification", 1, 10, "open", False),
@@ -100,7 +100,7 @@ def _get_or_create_opportunity_stages(company):
 
 
 def _get_or_create_forecast_type(company):
-    ForecastType = apps.get_model("horilla_crm", "ForecastType")
+    ForecastType = apps.get_model("forecast", "ForecastType")
     ft, _ = ForecastType.objects.get_or_create(
         name="Deal Revenue",
         company=company,
@@ -141,13 +141,13 @@ def _get_current_fiscal_periods(company):
 
 def generate_demo_data(company):
     """Generate demo CRM data using existing users tied to the given company."""
-    Account = apps.get_model("horilla_crm", "Account")
-    Contact = apps.get_model("horilla_crm", "Contact")
-    ContactAccountRelationship = apps.get_model("horilla_crm", "ContactAccountRelationship")
-    Lead = apps.get_model("horilla_crm", "Lead")
-    Opportunity = apps.get_model("horilla_crm", "Opportunity")
-    Campaign = apps.get_model("horilla_crm", "Campaign")
-    Forecast = apps.get_model("horilla_crm", "Forecast")
+    Account = apps.get_model("accounts", "Account")
+    Contact = apps.get_model("contacts", "Contact")
+    ContactAccountRelationship = apps.get_model("contacts", "ContactAccountRelationship")
+    Lead = apps.get_model("leads", "Lead")
+    Opportunity = apps.get_model("opportunities", "Opportunity")
+    Campaign = apps.get_model("campaigns", "Campaign")
+    Forecast = apps.get_model("forecast", "Forecast")
 
     users = list(User.objects.filter(company=company, is_active=True))
     if not users:
