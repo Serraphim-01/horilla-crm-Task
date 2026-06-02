@@ -155,13 +155,48 @@ def _consolidate_companies(target_company):
     return removed
 
 
+def _create_company_from_azure(access_token):
+    """Try to create a Company from Azure AD organization info."""
+    try:
+        org_url = 'https://graph.microsoft.com/v1.0/organization'
+        org_response = requests.get(org_url, headers={
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/json',
+        }, timeout=15)
+        org_response.raise_for_status()
+        org_data = org_response.json()
+        orgs = org_data.get('value', [])
+        if orgs:
+            org = orgs[0]
+            company_name = org.get('displayName') or 'My Company'
+            domains = org.get('verifiedDomains', [])
+            domain_name = None
+            for d in domains:
+                if d.get('isDefault') or (not domain_name):
+                    domain_name = d.get('name', 'company.com')
+            email = f'admin@{domain_name}' if domain_name else 'admin@company.com'
+            company, created = Company.objects.get_or_create(
+                name=company_name,
+                defaults={
+                    'hq': True,
+                    'email': email,
+                }
+            )
+            if created:
+                logger.info("Auto-created company from Azure AD: %s", company_name)
+            return company
+    except Exception as e:
+        logger.warning("Failed to auto-create company from Azure AD: %s", e)
+    return None
+
+
 def perform_azure_ad_sync(sso_settings=None):
     """
     Perform Azure AD user sync without request context.
 
-    Determines the target company (from sso_settings, HQ fallback), persists it,
-    migrates all existing users to it, consolidates duplicate companies, then
-    syncs users from Microsoft Graph.
+    Determines the target company (from sso_settings, HQ fallback, or auto-creates
+    from Azure AD organization data), persists it, migrates all existing users to it,
+    consolidates duplicate companies, then syncs users from Microsoft Graph.
 
     Returns:
         dict: {'created': int, 'updated': int, 'skipped': int, 'error': str|None}
@@ -176,17 +211,6 @@ def perform_azure_ad_sync(sso_settings=None):
     if not sso_settings.is_enabled:
         result['error'] = 'Microsoft SSO is not configured or enabled.'
         return result
-
-    company = sso_settings.company
-    if company is None:
-        company = Company.objects.filter(hq=True).first() or Company.objects.first()
-        if company is None:
-            result['error'] = 'No company found. Please create a company first.'
-            return result
-
-    _ensure_company_persisted(sso_settings, company)
-    _migrate_all_users_to_company(company)
-    _consolidate_companies(company)
 
     msal_app, _ = get_msal_app()
     if msal_app is None:
@@ -207,6 +231,20 @@ def perform_azure_ad_sync(sso_settings=None):
         return result
 
     access_token = token_response['access_token']
+
+    company = sso_settings.company
+    if company is None:
+        company = Company.objects.filter(hq=True).first() or Company.objects.first()
+        if company is None:
+            company = _create_company_from_azure(access_token)
+            if company is None:
+                result['error'] = 'No company found. Please create a company first.'
+                return result
+
+    _ensure_company_persisted(sso_settings, company)
+    _migrate_all_users_to_company(company)
+    _consolidate_companies(company)
+
     headers = {
         'Authorization': f'Bearer {access_token}',
         'Accept': 'application/json',
