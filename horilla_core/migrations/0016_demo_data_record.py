@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("contenttypes", "0002_remove_content_type_name"),
-        ("horilla_core", "0014_add_redirect_protocol_field"),
+        ("horilla_core", "0015_alter_microsoftssosettings_scopes"),
     ]
 
     operations = [
