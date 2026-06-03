@@ -81,7 +81,7 @@ class ClearDemoDataView(LoginRequiredMixin, View):
                 try:
                     model_class = record.content_type.model_class()
                     if model_class:
-                        deleted, _ = model_class.objects.filter(pk=record.object_id).delete()
+                        deleted, _count = model_class.objects.filter(pk=record.object_id).delete()
                         deleted_objects += deleted
                 except Exception as e:
                     logger.exception(
