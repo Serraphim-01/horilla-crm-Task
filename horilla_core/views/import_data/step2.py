@@ -433,6 +433,14 @@ class ImportStep2View(View):
                         v for v in file_values[:10] if v and str(v).strip()
                     ]
 
+                    # Do not treat phone-like text fields as date/money/email columns.
+                    lower_name = field_name.lower()
+                    lower_label = str(field["verbose_name"]).lower()
+                    phone_like = any(
+                        token in lower_name or token in lower_label
+                        for token in ["phone", "mobile", "fax", "contact_number", "telephone"]
+                    )
+
                     date_count = sum(
                         1 for val in sample_values if self.is_valid_date_format(val)
                     )
@@ -446,7 +454,7 @@ class ImportStep2View(View):
                     )
 
                     total_samples = len(sample_values)
-                    if total_samples > 0:
+                    if total_samples > 0 and not phone_like:
                         if date_count / total_samples >= 0.8:
                             if field_name not in validation_errors:
                                 validation_errors[field_name] = []
@@ -574,11 +582,24 @@ class ImportStep2View(View):
             )
 
     def is_valid_date_format(self, value):
-        """Check if value can be parsed as a date"""
+        """Check if value can be parsed as a date."""
         try:
+            val_str = str(value).strip()
+            if not val_str:
+                return False
+
+            # Avoid misclassifying pure numeric Excel columns (phone, account ids, etc.) as dates.
+            if val_str.isdigit():
+                return False
+
+            # Accept clearly formatted date strings only.
+            import re
+            if not re.search(r"[\-\./, ]|[A-Za-z]", val_str):
+                return False
+
             from dateutil import parser
 
-            parser.parse(str(value))
+            parser.parse(val_str)
             return True
         except Exception:
             return False
