@@ -1,5 +1,7 @@
 """Views for generating demo data and cleaning up companies."""
 
+import logging
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import redirect
@@ -12,6 +14,8 @@ from django.db import transaction
 
 from horilla_core.models import Company, DemoDataRecord
 from horilla_core.tasks import generate_demo_data_task
+
+logger = logging.getLogger(__name__)
 
 
 class GenerateDemoDataView(LoginRequiredMixin, View):
@@ -67,20 +71,44 @@ class ClearDemoDataView(LoginRequiredMixin, View):
 
         count = records.count()
         deleted_objects = 0
+        errors = []
+
+        # Attempt to delete tracked objects individually and record failures,
+        # but always remove the DemoDataRecord entries so the system does not
+        # keep failing on the same records.
         with transaction.atomic():
             for record in records:
-                model_class = record.content_type.model_class()
-                if model_class:
-                    deleted, _ = model_class.objects.filter(pk=record.object_id).delete()
-                    deleted_objects += deleted
+                try:
+                    model_class = record.content_type.model_class()
+                    if model_class:
+                        deleted, _ = model_class.objects.filter(pk=record.object_id).delete()
+                        deleted_objects += deleted
+                except Exception as e:
+                    logger.exception(
+                        "Error deleting demo object %s (content_type=%s): %s",
+                        record.object_id,
+                        record.content_type,
+                        e,
+                    )
+                    errors.append(str(e))
+
+            # Remove the DemoDataRecord entries regardless of per-object failures
             deleted_records = records.delete()
 
-        messages.success(
-            request,
-            _("Cleared {count} demo data records ({deleted} objects deleted).").format(
-                count=count, deleted=deleted_objects
-            ),
-        )
+        if errors:
+            messages.warning(
+                request,
+                _(
+                    "Cleared {count} demo data records ({deleted} objects deleted). Some objects could not be deleted and were logged."
+                ).format(count=count, deleted=deleted_objects),
+            )
+        else:
+            messages.success(
+                request,
+                _("Cleared {count} demo data records ({deleted} objects deleted).").format(
+                    count=count, deleted=deleted_objects
+                ),
+            )
         return redirect(self.success_url)
 
 
