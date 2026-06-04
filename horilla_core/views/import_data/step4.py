@@ -446,7 +446,7 @@ class ImportStep4View(View):
                                         value = str_value in ("true", "1", "yes", "on")
                                     else:
                                         row_errors.append(
-                                            f"Replace value for '{meta['verbose_name']}': Invalid boolean value '{replace_value}'. Valid values are: true, false, 1, 0, yes, no, on, off"
+                                            f"Replace value for '{meta['verbose_name']}': Invalid boolean value '{original_value}'. Valid values are: true, false, 1, 0, yes, no, on, off"
                                         )
                                         value = None
                                 else:
